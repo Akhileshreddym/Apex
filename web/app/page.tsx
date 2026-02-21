@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import TrackCanvas from "@/components/TrackCanvas";
 import DriverCard from "@/components/DriverCard";
 import PitWindow from "@/components/PitWindow";
@@ -13,6 +13,8 @@ import { ChaosProvider, useChaos } from "@/lib/ChaosContext";
 
 function Dashboard() {
   const chaos = useChaos();
+  const [currentLap, setCurrentLap] = useState(31);
+  const handleLapChange = useCallback((lap: number) => setCurrentLap(lap), []);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-apex-bg overflow-hidden">
@@ -35,7 +37,7 @@ function Dashboard() {
           <div className="flex items-center gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-apex-green animate-pulse-glow" />
             <span className="text-[10px] text-gray-500 font-mono">
-              RACE — LAP 31/53
+              RACE — LAP {currentLap}/53
             </span>
           </div>
           <div className="w-px h-4 bg-gray-800" />
@@ -75,7 +77,7 @@ function Dashboard() {
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-[300px_1fr_280px] grid-rows-[1fr_1fr] gap-px bg-apex-border overflow-hidden">
         <div className="row-span-1"><DriverCard /></div>
-        <div className="row-span-1"><TrackCanvas /></div>
+        <div className="row-span-1"><TrackCanvas onLapChange={handleLapChange} /></div>
         <div className="row-span-1"><StrategyPanel /></div>
         <div className="row-span-1 flex flex-col gap-px bg-apex-border overflow-y-auto">
           <PitWindow />

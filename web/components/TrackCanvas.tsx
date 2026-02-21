@@ -58,12 +58,18 @@ interface CarState {
   isOut: boolean;
 }
 
-export default function TrackCanvas() {
+interface TrackCanvasProps {
+  onLapChange?: (lap: number) => void;
+}
+
+export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsRef = useRef<CarState[]>([]);
   const animRef = useRef<number>(0);
   const currentLapRef = useRef<number>(31);
   const [currentLap, setCurrentLap] = useState(31);
+  const onLapChangeRef = useRef(onLapChange);
+  useEffect(() => { onLapChangeRef.current = onLapChange; }, [onLapChange]);
 
   const initCars = useCallback(() => {
     const drivers = timingData as any[];
@@ -179,6 +185,7 @@ export default function TrackCanvas() {
         if (currentLapRef.current < 53) {
           currentLapRef.current += 1;
           setCurrentLap(currentLapRef.current);
+          onLapChangeRef.current?.(currentLapRef.current);
         }
       }
 
