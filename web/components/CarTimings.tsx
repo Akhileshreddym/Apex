@@ -12,9 +12,18 @@ interface SimulationDriver extends TimingDataRow {
   CumulativeTime: number;
 }
 
-export default function CarTimings() {
+interface CarTimingsProps {
+  currentLap: number;
+}
+
+export default function CarTimings({ currentLap }: CarTimingsProps) {
   const chaos = useChaos();
-  const currentLapRef = useRef(31);
+
+  // Track the current visual lap without triggering effect restarts
+  const lapRef = useRef(currentLap);
+  useEffect(() => {
+    lapRef.current = currentLap;
+  }, [currentLap]);
 
   // Initialize with initial standings and calculate base cumulative time
   const [timingData, setTimingData] = useState<SimulationDriver[]>(() => {
@@ -35,12 +44,10 @@ export default function CarTimings() {
   useEffect(() => {
     // Tick every 2.5 seconds (simulating sectors/laps)
     const interval = setInterval(() => {
-      if (currentLapRef.current >= 53) {
+      if (lapRef.current >= 53) {
         clearInterval(interval);
         return;
       }
-      currentLapRef.current += 1;
-
       setTimingData((prevData) => {
         // First pass: Calculate new cumulative times for everyone
         const updatedDrivers = prevData.map((d) => {

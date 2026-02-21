@@ -84,7 +84,7 @@ function Dashboard() {
           <WeatherPanel />
           <TireDegradation />
         </div>
-        <div className="row-span-1"><CarTimings /></div>
+        <div className="row-span-1"><CarTimings currentLap={currentLap} /></div>
         <div className="row-span-1"><RaceHistory /></div>
       </div>
 
