@@ -1,9 +1,10 @@
+python-dotenv
 fastapi
 uvicorn
 websockets
 scikit-learn
 joblib
 numpy
-google-generativeai
+requests
 fastf1
 pandas

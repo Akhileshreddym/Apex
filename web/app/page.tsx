@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import TrackCanvas from "@/components/TrackCanvas";
 import DriverCard from "@/components/DriverCard";
 import PitWindow from "@/components/PitWindow";
@@ -6,22 +9,25 @@ import TireDegradation from "@/components/TireDegradation";
 import CarTimings from "@/components/CarTimings";
 import StrategyPanel from "@/components/StrategyPanel";
 import RaceHistory from "@/components/RaceHistory";
+import { ChaosProvider, useChaos } from "@/lib/ChaosContext";
 
-export default function PitWall() {
+function Dashboard() {
+  const chaos = useChaos();
+
   return (
     <div className="h-screen w-screen flex flex-col bg-apex-bg overflow-hidden">
       {/* Top Bar */}
       <header className="h-10 flex items-center justify-between px-4 border-b border-apex-border bg-apex-card shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 bg-apex-red" />
+            <div className="w-2.5 h-2.5 bg-apex-red" />
             <span className="font-mono text-xs font-bold tracking-widest text-gray-100">
               APEX
             </span>
           </div>
           <div className="w-px h-4 bg-gray-800" />
           <span className="text-[10px] text-gray-500 uppercase tracking-wider">
-            PIT WALL — SILVERSTONE GRAND PRIX
+            PIT WALL — ITALIAN GRAND PRIX
           </span>
         </div>
 
@@ -29,7 +35,7 @@ export default function PitWall() {
           <div className="flex items-center gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-apex-green animate-pulse-glow" />
             <span className="text-[10px] text-gray-500 font-mono">
-              RACE — LAP 31/56
+              RACE — LAP 31/53
             </span>
           </div>
           <div className="w-px h-4 bg-gray-800" />
@@ -38,69 +44,79 @@ export default function PitWall() {
           </span>
           <div className="w-px h-4 bg-gray-800" />
           <div className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-apex-cyan animate-pulse-glow" />
-            <span className="text-[10px] text-apex-cyan font-mono">WS:LIVE</span>
+            <div className={`h-1.5 w-1.5 rounded-full ${chaos.connected ? 'bg-apex-cyan' : 'bg-gray-600'} animate-pulse-glow`} />
+            <span className={`text-[10px] font-mono ${chaos.connected ? 'text-apex-cyan' : 'text-gray-600'}`}>
+              {chaos.connected ? 'WS:LIVE' : 'WS:OFF'}
+            </span>
           </div>
         </div>
       </header>
 
+      {/* AI Radio Call Banner */}
+      {chaos.radioCall && (
+        <div className="h-auto px-4 py-2 bg-gradient-to-r from-red-900/30 to-apex-card border-b border-red-800/40 flex items-start gap-3 shrink-0 animate-slide-in">
+          <div className="shrink-0 mt-0.5">
+            <div className="w-6 h-6 bg-red-500/15 border border-red-500/30 flex items-center justify-center text-[10px]">📡</div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[9px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5">
+                {chaos.event.toUpperCase().replace("_", " ")}
+              </span>
+              <span className="text-[9px] text-gray-600 font-mono">AI ENGINEER</span>
+            </div>
+            <p className="text-[11px] text-gray-300 leading-relaxed italic">
+              &quot;{chaos.radioCall}&quot;
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid */}
-      <div className="flex-1 grid grid-cols-[280px_1fr_300px] grid-rows-[minmax(280px,1.2fr)_1fr] gap-px bg-apex-border overflow-hidden">
-        {/* Left Column — Top: Driver Card */}
-        <div className="row-span-1 flex flex-col gap-px bg-apex-border">
-          <DriverCard />
-        </div>
-
-        {/* Center — Top: Track Canvas */}
-        <div className="row-span-1">
-          <TrackCanvas />
-        </div>
-
-        {/* Right Column — Top: Strategy */}
-        <div className="row-span-1">
-          <StrategyPanel />
-        </div>
-
-        {/* Left Column — Bottom: Pit + Weather + Tires */}
+      <div className="flex-1 grid grid-cols-[300px_1fr_280px] grid-rows-[1fr_1fr] gap-px bg-apex-border overflow-hidden">
+        <div className="row-span-1"><DriverCard /></div>
+        <div className="row-span-1"><TrackCanvas /></div>
+        <div className="row-span-1"><StrategyPanel /></div>
         <div className="row-span-1 flex flex-col gap-px bg-apex-border overflow-y-auto">
           <PitWindow />
           <WeatherPanel />
           <TireDegradation />
         </div>
-
-        {/* Center — Bottom: Car Timings */}
-        <div className="row-span-1">
-          <CarTimings />
-        </div>
-
-        {/* Right Column — Bottom: Race History */}
-        <div className="row-span-1">
-          <RaceHistory />
-        </div>
+        <div className="row-span-1"><CarTimings /></div>
+        <div className="row-span-1"><RaceHistory /></div>
       </div>
 
-      {/* Bottom Status Bar */}
-      <footer className="h-6 flex items-center justify-between px-4 border-t border-apex-border bg-apex-card shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-[9px] text-gray-600 font-mono">
-            ENGINE: MONTE CARLO 10K SIMS
-          </span>
+      {/* Bottom Status Ticker Bar */}
+      <footer className="h-7 flex items-center justify-between px-4 border-t border-apex-border bg-apex-card shrink-0">
+        <div className="flex items-center gap-3 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="h-1.5 w-1.5 bg-apex-green animate-pulse-glow rounded-full" />
+            <span className="text-[9px] text-gray-500 font-mono font-bold">RUN</span>
+          </div>
           <div className="w-px h-3 bg-gray-800" />
-          <span className="text-[9px] text-gray-600 font-mono">
-            MODEL: XGBOOST v2.1
-          </span>
-          <div className="w-px h-3 bg-gray-800" />
-          <span className="text-[9px] text-gray-600 font-mono">
-            VOICE: ELEVENLABS ACTIVE
+          <span className="text-[9px] text-gray-500 font-mono truncate">
+            {chaos.mathResults
+              ? `⚠ ${chaos.event.toUpperCase().replace("_", " ")} DETECTED — WIN PROB: ${chaos.mathResults.win_probability}% — ${chaos.mathResults.recommendation}`
+              : "SYSTEMS NOMINAL — ALL CHANNELS ACTIVE"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] text-gray-700 font-mono">
-            HACKLYTICS 2026
-          </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[9px] text-gray-600 font-mono">ENGINE: MONTE CARLO 10K</span>
+          <div className="w-px h-3 bg-gray-800" />
+          <span className="text-[9px] text-gray-600 font-mono">MODEL: SKLEARN v1</span>
+          <div className="w-px h-3 bg-gray-800" />
+          <span className="text-[9px] text-gray-700 font-mono">HACKLYTICS 2026</span>
           <div className="w-1 h-1 bg-apex-red" />
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function PitWall() {
+  return (
+    <ChaosProvider>
+      <Dashboard />
+    </ChaosProvider>
   );
 }

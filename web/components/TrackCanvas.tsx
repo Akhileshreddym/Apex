@@ -1,73 +1,52 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
-import { mockTimingData } from "@/lib/mock-data";
+import { useRef, useEffect, useCallback, useState } from "react";
+import timingData from "@/lib/timing_data.json";
+import monzaData from "@/lib/monza.json";
 
 /**
- * In production this would be populated from FastF1 telemetry X/Y data:
- *   lap.get_pos_data() → columns X, Y (units: 1/10 m)
- * For now we generate a Catmull-Rom spline as a placeholder track shape.
+ * Normalise + ROTATE the Monza telemetry so the track is LANDSCAPE.
+ * We swap X↔Y and negate the new-X so the chicanes face right.
  */
-const TRACK_POINTS = generateTrackSpline();
+function normalizeTrack(points: { x: number; y: number }[]) {
+  if (!points || points.length === 0) return [];
 
-function generateTrackSpline(): { x: number; y: number }[] {
-  const points: { x: number; y: number }[] = [];
-  const cx = 400,
-    cy = 220;
+  // Rotate 90° clockwise: newX = oldY,  newY = -oldX
+  const rotated = points.map(p => ({ x: p.y, y: -p.x }));
 
-  const controlPoints = [
-    { x: cx + 180, y: cy - 120 },
-    { x: cx + 220, y: cy - 60 },
-    { x: cx + 200, y: cy + 20 },
-    { x: cx + 160, y: cy + 80 },
-    { x: cx + 100, y: cy + 130 },
-    { x: cx + 20, y: cy + 140 },
-    { x: cx - 80, y: cy + 120 },
-    { x: cx - 160, y: cy + 80 },
-    { x: cx - 210, y: cy + 20 },
-    { x: cx - 200, y: cy - 40 },
-    { x: cx - 160, y: cy - 100 },
-    { x: cx - 80, y: cy - 130 },
-    { x: cx + 20, y: cy - 140 },
-    { x: cx + 100, y: cy - 140 },
-  ];
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
 
-  const n = controlPoints.length;
-  const totalSteps = 300;
-
-  for (let i = 0; i < totalSteps; i++) {
-    const t = i / totalSteps;
-    const segment = t * n;
-    const idx = Math.floor(segment) % n;
-    const localT = segment - Math.floor(segment);
-
-    const p0 = controlPoints[(idx - 1 + n) % n];
-    const p1 = controlPoints[idx];
-    const p2 = controlPoints[(idx + 1) % n];
-    const p3 = controlPoints[(idx + 2) % n];
-
-    const tt = localT * localT;
-    const ttt = tt * localT;
-
-    const x =
-      0.5 *
-      (2 * p1.x +
-        (-p0.x + p2.x) * localT +
-        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * tt +
-        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * ttt);
-
-    const y =
-      0.5 *
-      (2 * p1.y +
-        (-p0.y + p2.y) * localT +
-        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * tt +
-        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * ttt);
-
-    points.push({ x, y });
+  for (const p of rotated) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
   }
 
-  return points;
+  const trackWidth = maxX - minX;
+  const trackHeight = maxY - minY;
+
+  // Target canvas logical size: 800x440, 30px margin
+  const availW = 740;
+  const availH = 380;
+  const scale = Math.min(availW / trackWidth, availH / trackHeight);
+
+  // Center the track in the canvas
+  const scaledW = trackWidth * scale;
+  const scaledH = trackHeight * scale;
+  const offsetX = (800 - scaledW) / 2;
+  const offsetY = (440 - scaledH) / 2;
+
+  return rotated.map(p => ({
+    x: (p.x - minX) * scale + offsetX,
+    y: (p.y - minY) * scale + offsetY,
+  }));
 }
+
+const RAW_POINTS = monzaData as { x: number; y: number }[];
+const SUBSAMPLED = RAW_POINTS.filter((_, i) => i % 5 === 0);
+const TRACK_POINTS = normalizeTrack(SUBSAMPLED);
 
 interface CarState {
   trackIndex: number;
@@ -83,11 +62,13 @@ export default function TrackCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsRef = useRef<CarState[]>([]);
   const animRef = useRef<number>(0);
+  const [currentLap, setCurrentLap] = useState(31);
 
   const initCars = useCallback(() => {
-    carsRef.current = mockTimingData.map((d, i) => ({
-      trackIndex: (i * 15) % TRACK_POINTS.length,
-      speed: d.Status === "OUT" ? 0 : 1.2 + Math.random() * 0.4 - i * 0.015,
+    const drivers = timingData as any[];
+    carsRef.current = drivers.map((d: any, i: number) => ({
+      trackIndex: (i * 20) % TRACK_POINTS.length,
+      speed: d.Status === "OUT" ? 0 : 1.4 + Math.random() * 0.3 - i * 0.02,
       Abbreviation: d.Abbreviation,
       TeamColor: `#${d.TeamColor}`,
       DriverNumber: d.DriverNumber,
@@ -122,6 +103,7 @@ export default function TrackCanvas() {
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
+    // Track border (dark)
     ctx.strokeStyle = "#1e293b";
     ctx.lineWidth = 28;
     ctx.lineCap = "round";
@@ -134,6 +116,7 @@ export default function TrackCanvas() {
     ctx.closePath();
     ctx.stroke();
 
+    // Track surface (middle tone)
     ctx.strokeStyle = "#334155";
     ctx.lineWidth = 26;
     ctx.beginPath();
@@ -144,6 +127,7 @@ export default function TrackCanvas() {
     ctx.closePath();
     ctx.stroke();
 
+    // Center line
     ctx.strokeStyle = "#475569";
     ctx.lineWidth = 1;
     ctx.setLineDash([8, 12]);
@@ -156,18 +140,26 @@ export default function TrackCanvas() {
     ctx.stroke();
     ctx.setLineDash([]);
 
+    // Start/Finish line
     const sfPos = TRACK_POINTS[0];
     ctx.fillStyle = "#22d3ee";
-    ctx.fillRect(sfPos.x - 2, sfPos.y - 18, 4, 36);
+    ctx.fillRect(sfPos.x - 18, sfPos.y - 2, 36, 4);
     ctx.font = "bold 9px JetBrains Mono, monospace";
     ctx.fillStyle = "#22d3ee";
-    ctx.fillText("S/F", sfPos.x + 8, sfPos.y - 10);
+    ctx.textAlign = "center";
+    ctx.fillText("S/F", sfPos.x, sfPos.y - 10);
 
+    // Cars
     for (const car of carsRef.current) {
       if (car.isOut) continue;
 
-      car.trackIndex =
-        (car.trackIndex + car.speed) % TRACK_POINTS.length;
+      const prevIndex = car.trackIndex;
+      car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+
+      if (car.Position === 1 && prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 50) {
+        setCurrentLap((c) => Math.min(c + 1, 53));
+      }
+
       if (car.trackIndex < 0) car.trackIndex += TRACK_POINTS.length;
 
       const idx = Math.floor(car.trackIndex);
@@ -209,10 +201,10 @@ export default function TrackCanvas() {
     <div className="apex-card h-full relative overflow-hidden">
       <div className="absolute top-2 left-3 z-10 flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-apex-cyan animate-pulse-glow" />
-        <span className="apex-label">LIVE TRACK — SILVERSTONE GP</span>
+        <span className="apex-label">LIVE TRACK — ITALIAN GP</span>
       </div>
       <div className="absolute top-2 right-3 z-10">
-        <span className="apex-label text-apex-cyan">LAP 31 / 56</span>
+        <span className="apex-label text-apex-cyan">LAP {currentLap} / 53</span>
       </div>
       <canvas
         ref={canvasRef}

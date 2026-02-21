@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { ChaosEvent } from "@/lib/types";
+import { useWebSocket } from "@/lib/useWebSocket";
 
 interface ChaosButton {
   event: ChaosEvent["event"];
@@ -17,9 +18,29 @@ interface ChaosButton {
 
 const CHAOS_BUTTONS: ChaosButton[] = [
   {
+    event: "minor_crash",
+    label: "MINOR CRASH",
+    subtitle: "Virtual Safety Car — Small debris",
+    icon: "💥",
+    color: "#f59e0b",
+    bgColor: "rgba(245, 158, 11, 0.08)",
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    glowColor: "rgba(245, 158, 11, 0.25)",
+  },
+  {
+    event: "major_crash",
+    label: "MAJOR CRASH",
+    subtitle: "Safety Car deployed — Heavy impact",
+    icon: "🚨",
+    color: "#ef4444",
+    bgColor: "rgba(239, 68, 68, 0.08)",
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    glowColor: "rgba(239, 68, 68, 0.25)",
+  },
+  {
     event: "rain",
     label: "SUDDEN RAIN",
-    subtitle: "Heavy downpour — Inters or Wets?",
+    subtitle: "Heavy downpour — Transition to Inters?",
     icon: "⛈",
     color: "#3b82f6",
     bgColor: "rgba(59, 130, 246, 0.08)",
@@ -28,54 +49,54 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     intensity: "heavy",
   },
   {
-    event: "crash",
-    label: "CRASH",
-    subtitle: "Major incident — Debris on track",
-    icon: "💥",
-    color: "#ef4444",
-    bgColor: "rgba(239, 68, 68, 0.08)",
-    borderColor: "rgba(239, 68, 68, 0.3)",
-    glowColor: "rgba(239, 68, 68, 0.25)",
-  },
-  {
-    event: "safety_car",
-    label: "SAFETY CAR",
-    subtitle: "SC deployed — Pack bunches up",
-    icon: "🚗",
-    color: "#eab308",
-    bgColor: "rgba(234, 179, 8, 0.08)",
-    borderColor: "rgba(234, 179, 8, 0.3)",
-    glowColor: "rgba(234, 179, 8, 0.25)",
-  },
-  {
-    event: "red_flag",
-    label: "RED FLAG",
-    subtitle: "Session stopped — All cars return",
-    icon: "🟥",
-    color: "#dc2626",
-    bgColor: "rgba(220, 38, 38, 0.08)",
-    borderColor: "rgba(220, 38, 38, 0.3)",
-    glowColor: "rgba(220, 38, 38, 0.25)",
-  },
-  {
-    event: "mechanical",
-    label: "MECHANICAL",
-    subtitle: "Random DNF — Engine or gearbox",
-    icon: "🔧",
+    event: "heatwave",
+    label: "HEATWAVE",
+    subtitle: "Scorching track temperatures",
+    icon: "🔥",
     color: "#f97316",
     bgColor: "rgba(249, 115, 22, 0.08)",
     borderColor: "rgba(249, 115, 22, 0.3)",
     glowColor: "rgba(249, 115, 22, 0.25)",
   },
   {
-    event: "vsc",
-    label: "VSC",
-    subtitle: "Virtual safety car — Delta mode",
-    icon: "🏴",
+    event: "traffic",
+    label: "STUCK IN TRAFFIC",
+    subtitle: "Caught behind lapped cars / slower pace",
+    icon: "🐌",
+    color: "#64748b",
+    bgColor: "rgba(100, 116, 139, 0.08)",
+    borderColor: "rgba(100, 116, 139, 0.3)",
+    glowColor: "rgba(100, 116, 139, 0.25)",
+  },
+  {
+    event: "tyre_failure",
+    label: "TYRE FAILURE",
+    subtitle: "Sudden puncture — Box immediately",
+    icon: "💥",
+    color: "#dc2626",
+    bgColor: "rgba(220, 38, 38, 0.08)",
+    borderColor: "rgba(220, 38, 38, 0.3)",
+    glowColor: "rgba(220, 38, 38, 0.25)",
+  },
+  {
+    event: "penalty_5s",
+    label: "5 SECOND PENALTY",
+    subtitle: "Track limits or speeding in pit lane",
+    icon: "⏱",
     color: "#a855f7",
     bgColor: "rgba(168, 85, 247, 0.08)",
     borderColor: "rgba(168, 85, 247, 0.3)",
     glowColor: "rgba(168, 85, 247, 0.25)",
+  },
+  {
+    event: "tyre_deg",
+    label: "UNEXPECTED DEG",
+    subtitle: "Tyres falling off a cliff earlier than planned",
+    icon: "📉",
+    color: "#f43f5e",
+    bgColor: "rgba(244, 63, 94, 0.08)",
+    borderColor: "rgba(244, 63, 94, 0.3)",
+    glowColor: "rgba(244, 63, 94, 0.25)",
   },
 ];
 
@@ -83,6 +104,10 @@ export default function StewardPage() {
   const [lastEvent, setLastEvent] = useState<string | null>(null);
   const [activeBtn, setActiveBtn] = useState<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { send } = useWebSocket({
+    url: "ws://localhost:8000/ws/chaos"
+  });
 
   const handleChaos = useCallback(
     (btn: ChaosButton) => {
@@ -99,11 +124,10 @@ export default function StewardPage() {
         setActiveBtn(null);
       }, 300);
 
-      // In production, this sends via WebSocket:
-      // send(payload);
+      send(payload);
       console.log("CHAOS EVENT:", payload);
     },
-    []
+    [send]
   );
 
   return (

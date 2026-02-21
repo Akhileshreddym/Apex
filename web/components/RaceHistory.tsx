@@ -1,5 +1,6 @@
 "use client";
 
+import { useChaos } from "@/lib/ChaosContext";
 import { mockRaceEvents } from "@/lib/mock-data";
 import { formatSessionTime } from "@/lib/format";
 import type { RaceEvent } from "@/lib/types";
@@ -16,18 +17,42 @@ const EVENT_STYLES: Record<
   flag: { color: "#eab308", icon: "🏴" },
 };
 
+const CHAOS_TO_TYPE: Record<string, RaceEvent["type"]> = {
+  rain: "weather",
+  heatwave: "weather",
+  minor_crash: "incident",
+  major_crash: "incident",
+  tyre_failure: "incident",
+  traffic: "flag",
+  penalty_5s: "flag",
+  tyre_deg: "strategy",
+};
+
 export default function RaceHistory() {
+  const chaos = useChaos();
+
+  // Merge chaos events into the race feed
+  const chaosEvents: RaceEvent[] = chaos.eventHistory.map((e) => ({
+    id: e.id,
+    LapNumber: 31,
+    Time: e.timestamp / 1000,
+    type: CHAOS_TO_TYPE[e.event] ?? "strategy",
+    description: `${e.event.toUpperCase().replace("_", " ")} — ${e.recommendation}`,
+  }));
+
+  const allEvents = [...chaosEvents, ...mockRaceEvents];
+
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between mb-2">
         <span className="apex-label">RACE FEED</span>
         <span className="apex-label text-gray-600">
-          {mockRaceEvents.length} EVENTS
+          {allEvents.length} EVENTS
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {mockRaceEvents.map((event) => {
+        {allEvents.map((event) => {
           const style = EVENT_STYLES[event.type];
           return (
             <div
@@ -54,9 +79,6 @@ export default function RaceHistory() {
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="font-mono text-[10px] text-gray-600">
                     L{event.LapNumber}
-                  </span>
-                  <span className="text-[9px] text-gray-700">
-                    {formatSessionTime(event.Time)}
                   </span>
                   <span
                     className="text-[8px] font-bold uppercase px-1"

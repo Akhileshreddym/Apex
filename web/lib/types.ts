@@ -170,7 +170,7 @@ export interface RaceEvent {
 
 // Chaos events emitted from iPad to backend
 export interface ChaosEvent {
-  event: "rain" | "crash" | "safety_car" | "red_flag" | "mechanical" | "vsc";
+  event: "minor_crash" | "major_crash" | "rain" | "heatwave" | "traffic" | "tyre_failure" | "penalty_5s" | "tyre_deg";
   intensity?: string;
   driver?: string;
 }

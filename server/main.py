@@ -3,18 +3,16 @@ from pydantic import BaseModel
 import asyncio
 import json
 import os
-import google.generativeai as genai
+import requests
+from dotenv import load_dotenv
 from simulator import run_monte_carlo
+
+load_dotenv()
 
 app = FastAPI()
 
-# Configure Gemini
-api_key = os.environ.get("GEMINI_API_KEY", "")
-if api_key:
-    genai.configure(api_key=api_key)
-    
-# Use gemini-2.5-flash which is standard and fast
-model = genai.GenerativeModel('gemini-2.5-flash')
+# Configure OpenRouter API Key (fallback to GEMINI_API_KEY)
+api_key = os.environ.get("OPENROUTER_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 class ConnectionManager:
     def __init__(self):
@@ -40,7 +38,7 @@ manager = ConnectionManager()
 
 async def generate_radio_call(math_results: dict, event: str) -> str:
     if not api_key:
-        return "Gemini API key not found. Simulated Radio: Box box box!"
+        return "OpenRouter API key not found. Simulated Radio: Box box box!"
         
     prompt = f"""
     You are a highly stressed F1 Race Engineer. 
@@ -53,18 +51,25 @@ async def generate_radio_call(math_results: dict, event: str) -> str:
     Keep it panicked but professional. Include the specific recommendation and win probability.
     """
     
-    try:
-        # 1.0s latency budget: we use a timeout
-        response = await asyncio.wait_for(
-            asyncio.to_thread(model.generate_content, prompt), 
-            timeout=1.5
+    def fetch_openrouter():
+        res = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": "google/gemini-2.5-flash",
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=2.0
         )
-        return response.text.strip()
-    except asyncio.TimeoutError:
-        print("Gemini API timeout.")
-        return "Copy that, we are crunching the numbers. Stay out for now."
+        res.raise_for_status()
+        return res.json()
+
+    try:
+        # Give a 2.0s latency budget for OpenRouter overhead via timeout parameter
+        response_data = await asyncio.to_thread(fetch_openrouter)
+        return response_data['choices'][0]['message']['content'].strip()
     except Exception as e:
-        print(f"Gemini API error: {e}")
+        print(f"OpenRouter API error/timeout: {e}")
         return "Box box box! We have a strategy error, come in now!"
 
 
@@ -87,8 +92,6 @@ async def websocket_endpoint(websocket: WebSocket):
             current_tire_age = payload.get("current_tire_age", 15)
             compound_str = payload.get("compound", "MEDIUM")
             laps_left = payload.get("laps_left", 30)
-            
-            is_rain = (event == "rain")
 
             # 1. Run Vectorized Monte Carlo Physics Engine
             try:
@@ -97,7 +100,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_tire_age=current_tire_age,
                     compound_str=compound_str, 
                     laps_left=laps_left,
-                    is_rain=is_rain
+                    event=event
                 )
             except Exception as e:
                 print(f"Simulator error: {e}")

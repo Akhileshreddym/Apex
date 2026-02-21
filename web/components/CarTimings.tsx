@@ -1,16 +1,50 @@
 "use client";
 
+import { useChaos } from "@/lib/ChaosContext";
 import { mockTimingData, TIRE_COLORS } from "@/lib/mock-data";
 import { formatLapTime } from "@/lib/format";
 
 export default function CarTimings() {
+  const chaos = useChaos();
+
+  // Apply chaos-driven gap modifications
+  const timingData = mockTimingData.map((d, i) => {
+    if (i === 0 || d.Status === "OUT") return d;
+
+    // Shuffle gaps based on events
+    let gapModifier = 0;
+    if (chaos.event === "major_crash" || chaos.event === "minor_crash") {
+      // Safety car bunches the pack
+      gapModifier = -(parseFloat(d.GapToLeader.replace("+", "")) * 0.7);
+    } else if (chaos.event === "rain") {
+      // Rain spreads the field for slick runners
+      gapModifier = i * 0.8;
+    } else if (chaos.event === "traffic") {
+      // Midfield bunches
+      if (i >= 4 && i <= 10) gapModifier = -(i * 0.3);
+    }
+
+    if (gapModifier === 0) return d;
+
+    const originalGap = parseFloat(d.GapToLeader.replace("+", ""));
+    if (isNaN(originalGap)) return d;
+
+    const newGap = Math.max(0.1, originalGap + gapModifier);
+    return {
+      ...d,
+      GapToLeader: `+${newGap.toFixed(3)}`,
+    };
+  });
+
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between mb-2">
         <span className="apex-label">LIVE TIMING</span>
         <div className="flex items-center gap-1">
-          <div className="h-1.5 w-1.5 rounded-full bg-apex-cyan animate-pulse-glow" />
-          <span className="apex-label text-apex-cyan">LIVE</span>
+          <div className={`h-1.5 w-1.5 rounded-full ${chaos.connected ? 'bg-apex-cyan' : 'bg-gray-600'} animate-pulse-glow`} />
+          <span className={`apex-label ${chaos.connected ? 'text-apex-cyan' : 'text-gray-600'}`}>
+            {chaos.connected ? 'LIVE' : 'STATIC'}
+          </span>
         </div>
       </div>
 
@@ -27,14 +61,13 @@ export default function CarTimings() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {mockTimingData.map((d) => {
+        {timingData.map((d) => {
           const tireColor = TIRE_COLORS[d.Compound] ?? "#64748b";
           return (
             <div
               key={d.Abbreviation}
-              className={`grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 items-center py-1 px-1 border-b border-gray-800/30 hover:bg-white/[0.02] transition-colors ${
-                d.Status === "OUT" ? "opacity-40" : ""
-              }`}
+              className={`grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 items-center py-1 px-1 border-b border-gray-800/30 hover:bg-white/[0.02] transition-colors ${d.Status === "OUT" ? "opacity-40" : ""
+                }`}
             >
               <span
                 className="font-mono text-xs font-bold text-center"
@@ -44,8 +77,8 @@ export default function CarTimings() {
                       ? d.Position === 1
                         ? "#22d3ee"
                         : d.Position === 2
-                        ? "#e2e8f0"
-                        : "#f97316"
+                          ? "#e2e8f0"
+                          : "#f97316"
                       : "#64748b",
                 }}
               >
@@ -67,13 +100,12 @@ export default function CarTimings() {
               </span>
 
               <span
-                className={`font-mono text-[11px] text-right ${
-                  d.GapToLeader === "LEADER"
+                className={`font-mono text-[11px] text-right ${d.GapToLeader === "LEADER"
                     ? "text-apex-cyan font-bold"
                     : d.GapToLeader === "DNF"
-                    ? "text-apex-red"
-                    : "text-gray-300"
-                }`}
+                      ? "text-apex-red"
+                      : "text-gray-300"
+                  }`}
               >
                 {d.GapToLeader}
               </span>

@@ -1,4 +1,4 @@
-// File: /Users/deshmukhsanket/projects/Apex/web/app/ipad/page.tsx
+// File: /Users/akhilesh/Hacklytics/Apex/web/app/ipad/page.tsx
 import * as entry from '../../../../app/ipad/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

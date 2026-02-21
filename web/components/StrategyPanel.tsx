@@ -1,7 +1,9 @@
 "use client";
 
+import { useChaos } from "@/lib/ChaosContext";
 import { mockStrategies, TIRE_COLORS } from "@/lib/mock-data";
 import type { StrategyRec } from "@/lib/types";
+import { useState, useEffect } from "react";
 
 const PRIORITY_STYLES: Record<
   StrategyRec["priority"],
@@ -34,17 +36,55 @@ const PRIORITY_STYLES: Record<
 };
 
 export default function StrategyPanel() {
+  const chaos = useChaos();
+  const [strategies, setStrategies] = useState<StrategyRec[]>(mockStrategies);
+
+  useEffect(() => {
+    if (!chaos.mathResults || !chaos.event) return;
+
+    const math = chaos.mathResults;
+
+    let priority: "critical" | "high" | "medium" | "low" = "medium";
+    if (["major_crash", "tyre_failure", "rain"].includes(chaos.event)) {
+      priority = "critical";
+    } else if (["minor_crash", "heatwave", "tyre_deg"].includes(chaos.event)) {
+      priority = "high";
+    }
+
+    let compound: any = "INTERMEDIATE";
+    if (math.recommendation.includes("Hards")) compound = "HARD";
+    else if (math.recommendation.includes("slicks")) compound = "SOFT";
+    else if (["tyre_deg", "traffic", "penalty_5s"].includes(chaos.event)) {
+      compound = "MEDIUM";
+    }
+
+    const newStrategy: StrategyRec = {
+      id: Math.random().toString(),
+      LapNumber: 31,
+      priority,
+      action: chaos.event.toUpperCase().replace("_", " "),
+      Compound: compound,
+      winProb: math.win_probability,
+      detail: math.recommendation,
+    };
+
+    setStrategies((prev) => [newStrategy, ...prev.slice(0, 2)]);
+  }, [chaos.mathResults, chaos.event]);
+
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between mb-2">
         <span className="apex-label">STRATEGY</span>
-        <span className="text-[9px] font-bold text-apex-cyan bg-apex-cyan/10 px-1.5 py-0.5">
-          MONTE CARLO
+        <span className={`text-[9px] font-bold px-1.5 py-0.5 ${chaos.connected
+            ? 'text-apex-cyan bg-apex-cyan/10 animate-pulse'
+            : 'text-gray-600 bg-gray-800'
+          }`}>
+          {chaos.connected ? 'WS:LIVE' : 'STATIC'}
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto flex flex-col gap-2">
-        {mockStrategies.map((s) => {
+        {strategies.map((s) => {
           const style = PRIORITY_STYLES[s.priority];
           const tireColor = TIRE_COLORS[s.Compound] ?? "#64748b";
           return (
@@ -95,8 +135,8 @@ export default function StrategyPanel() {
                       s.winProb >= 75
                         ? "#22c55e"
                         : s.winProb >= 50
-                        ? "#f97316"
-                        : "#ef4444",
+                          ? "#f97316"
+                          : "#ef4444",
                   }}
                 />
               </div>
