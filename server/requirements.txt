@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+websockets
+scikit-learn
+joblib
+numpy
+google-generativeai
+fastf1
+pandas

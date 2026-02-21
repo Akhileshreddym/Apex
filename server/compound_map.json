@@ -1,0 +1,7 @@
+{
+    "SOFT": 0.0,
+    "INTERMEDIATE": 1.0,
+    "WET": 2.0,
+    "MEDIUM": 3.0,
+    "HARD": 4.0
+}
