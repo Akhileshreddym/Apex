@@ -58,18 +58,27 @@ interface CarState {
   isOut: boolean;
 }
 
-export default function TrackCanvas() {
+interface TrackCanvasProps {
+  onLapChange?: (lap: number) => void;
+}
+
+export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsRef = useRef<CarState[]>([]);
   const animRef = useRef<number>(0);
   const currentLapRef = useRef<number>(31);
   const [currentLap, setCurrentLap] = useState(31);
+  const onLapChangeRef = useRef(onLapChange);
+  useEffect(() => { onLapChangeRef.current = onLapChange; }, [onLapChange]);
 
   const initCars = useCallback(() => {
     const drivers = timingData as any[];
+    // Target ~4.1 seconds per lap (90 seconds / 22 laps left). At 60fps, that's 246 frames.
+    const baseSpeed = TRACK_POINTS.length / 246;
+
     carsRef.current = drivers.map((d: any, i: number) => ({
       trackIndex: (i * 20) % TRACK_POINTS.length,
-      speed: d.Status === "OUT" ? 0 : 1.4 + Math.random() * 0.3 - i * 0.02,
+      speed: d.Status === "OUT" ? 0 : baseSpeed + Math.random() * (baseSpeed * 0.1) - i * (baseSpeed * 0.01),
       Abbreviation: d.Abbreviation,
       TeamColor: `#${d.TeamColor}`,
       DriverNumber: d.DriverNumber,
@@ -143,14 +152,28 @@ export default function TrackCanvas() {
 
     // Start/Finish line
     const sfPos = TRACK_POINTS[0];
+
+    // Calculate the angle of the track at S/F line to rotate the drawing properly
+    const nextPos = TRACK_POINTS[1];
+    const angle = Math.atan2(nextPos.y - sfPos.y, nextPos.x - sfPos.x);
+
+    ctx.save();
+    ctx.translate(sfPos.x, sfPos.y);
+    ctx.rotate(angle);
+
+    // Draw the line perfectly perpendicular to the track direction
     ctx.fillStyle = "#22d3ee";
-    ctx.fillRect(sfPos.x - 18, sfPos.y - 2, 36, 4);
-    ctx.font = "bold 9px JetBrains Mono, monospace";
+    // x is along track direction, y is across. We want the line across the track.
+    ctx.fillRect(-2, -18, 4, 36);
+
+    // Draw the "S/F" text
+    ctx.rotate(-angle); // unrotate text so it stays upright
+    ctx.font = "bold 9px monospace";
     ctx.fillStyle = "#22d3ee";
     ctx.textAlign = "center";
-    ctx.fillText("S/F", sfPos.x, sfPos.y - 10);
+    ctx.fillText("S/F", 0, -22);
 
-    // Cars
+    ctx.restore();
     for (const car of carsRef.current) {
       if (car.isOut) continue;
 
@@ -179,6 +202,7 @@ export default function TrackCanvas() {
         if (currentLapRef.current < 53) {
           currentLapRef.current += 1;
           setCurrentLap(currentLapRef.current);
+          onLapChangeRef.current?.(currentLapRef.current);
         }
       }
 
@@ -195,13 +219,13 @@ export default function TrackCanvas() {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.font = "bold 5px JetBrains Mono, monospace";
+      ctx.font = "bold 5px monospace";
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(car.DriverNumber, pt.x, pt.y);
 
-      ctx.font = "bold 8px JetBrains Mono, monospace";
+      ctx.font = "bold 8px monospace";
       ctx.fillStyle = "#e2e8f0";
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
