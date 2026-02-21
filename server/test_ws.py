@@ -18,10 +18,7 @@ async def test_backend():
             for event in EVENTS:
                 print(f"\n--- Sending '{event}' ---")
                 payload = {
-                    "event": event,
-                    "current_tire_age": 12,
-                    "compound": "MEDIUM",
-                    "laps_left": 25
+                    "event": event
                 }
                 await websocket.send(json.dumps(payload))
                 

@@ -99,6 +99,10 @@ async def websocket_endpoint(websocket: WebSocket):
             compound_str = payload.get("compound", f1_tire_info.get("compound_str", "MEDIUM"))
             laps_left = payload.get("laps_left", f1_tire_info.get("laps_left", 30))
             
+            # Safeguard: if fastf1 says the race is over (laps_left <= 0), fallback to our simulation baseline of ~22 laps left
+            if laps_left <= 0:
+                laps_left = 22
+            
             print(f"Using tire data - Age: {current_tire_age}, Compound: {compound_str}, Laps Left: {laps_left}")
 
             # 1. Run Vectorized Monte Carlo Physics Engine
@@ -108,7 +112,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_tire_age=current_tire_age,
                     compound_str=compound_str, 
                     laps_left=laps_left,
-                    event=event
+                    event=event,
+                    driver=driver
                 )
             except Exception as e:
                 print(f"Simulator error: {e}")

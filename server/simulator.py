@@ -5,15 +5,22 @@ import joblib
 
 model = None
 compound_map = None
+feature_cols = None
 
 def load_resources():
-    global model, compound_map
+    global model, compound_map, feature_cols
     try:
         if os.path.exists('compound_map.json'):
             with open('compound_map.json', 'r') as f:
                 compound_map = json.load(f)
         else:
             print("Warning: compound_map.json not found")
+            
+        if os.path.exists('feature_columns_v1.json'):
+            with open('feature_columns_v1.json', 'r') as f:
+                feature_cols = json.load(f)
+        else:
+            print("Warning: feature_columns_v1.json not found")
         
         if os.path.exists('engine_v1.joblib'):
             model = joblib.load('engine_v1.joblib')
@@ -28,8 +35,8 @@ def load_resources():
 # Initialize on load
 load_resources()
 
-def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
-    if not model or not compound_map:
+def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None, driver="VER"):
+    if not model or not feature_cols:
         if not load_resources():
             return {
                 "predicted_total_time": 0,
@@ -37,11 +44,21 @@ def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
                 "recommendation": "Error: Model not loaded."
             }
 
-    # Encode compound
-    compound_enc = compound_map.get(str(compound_str).upper(), 0.0)
+    # Construct the base feature array based on feature_columns_v1.json
+    X_base = np.zeros((1, len(feature_cols)))
+    
+    # Fill in the features
+    for idx, col in enumerate(feature_cols):
+        if col == "LapNumber":
+            X_base[0, idx] = max(1, 53 - laps_left) # Estimate current lap
+        elif col == "TyreLife":
+            X_base[0, idx] = current_tire_age
+        elif col == f"Driver_{driver.upper()}":
+            X_base[0, idx] = 1.0
+        elif col == f"Compound_{compound_str.upper()}":
+            X_base[0, idx] = 1.0
 
     # 1. Ask Model for baseline lap time
-    X_base = np.array([[current_tire_age, compound_enc]])
     baseline_lap_time = float(model.predict(X_base)[0])
 
     # 2. NumPy Vectorized Monte Carlo (10,000 simulations x laps_left)
@@ -92,8 +109,22 @@ def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
     mean_total_time = float(np.mean(total_times))
     
     # --- THE REAL DATA SCIENCE WINS (NO RANDOM GUESSING) ---
-    # Assume the "pack" finishes in (baseline_lap_time * laps_left) + 2.0 seconds
-    pack_finish_time = (baseline_lap_time * laps_left) + 2.0
+    # The pack theoretically finishes with baseline + regular deg penalty
+    pack_base_time = (baseline_lap_time * laps_left) + np.sum(deg_penalty)
+    
+    # Add pack's event penalty. The pack also suffers from the same race conditions.
+    pack_event_penalty = 0
+    if event == "rain": pack_event_penalty = 15.0 * laps_left
+    elif event == "minor_crash": pack_event_penalty = 60.0
+    elif event == "major_crash": pack_event_penalty = 160.0
+    elif event == "traffic": pack_event_penalty = 2.5 * laps_left
+    
+    # Give the pack a slight random edge or deficit based on the event to simulate strategy risk
+    strategy_risk_offset = 0.0
+    if event == "heatwave": strategy_risk_offset = 2.0 # Harder to beat
+    elif event == "minor_crash": strategy_risk_offset = -1.0 # Easier to pit under VSC
+    
+    pack_finish_time = pack_base_time + pack_event_penalty + strategy_risk_offset
     
     # How many of our 10,000 simulations beat the pack?
     winning_sims = np.sum(total_times < pack_finish_time)
