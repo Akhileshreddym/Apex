@@ -62,6 +62,7 @@ export default function TrackCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsRef = useRef<CarState[]>([]);
   const animRef = useRef<number>(0);
+  const currentLapRef = useRef<number>(31);
   const [currentLap, setCurrentLap] = useState(31);
 
   const initCars = useCallback(() => {
@@ -154,10 +155,31 @@ export default function TrackCanvas() {
       if (car.isOut) continue;
 
       const prevIndex = car.trackIndex;
-      car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
 
+      // Moving logic
+      if (currentLapRef.current < 53) {
+        // Normal racing
+        car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+      } else {
+        // We are on lap 53. Cars still racing should drive until they hit the line.
+        // The line is essentially index 0 (or crossing from high trackIndex to low).
+        if (car.speed > 0) { // If they haven't finished yet
+          car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+
+          // Did they just cross the finish line?
+          if (prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 50) {
+            car.trackIndex = 0; // Snap exactly to the start/finish line
+            car.speed = 0; // Stop moving permanently
+          }
+        }
+      }
+
+      // Leader lap counter update
       if (car.Position === 1 && prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 50) {
-        setCurrentLap((c) => Math.min(c + 1, 53));
+        if (currentLapRef.current < 53) {
+          currentLapRef.current += 1;
+          setCurrentLap(currentLapRef.current);
+        }
       }
 
       if (car.trackIndex < 0) car.trackIndex += TRACK_POINTS.length;
