@@ -17,3 +17,5 @@
 **/.nextserver/.venv/
 **/.next/
 **/.venv/
+documentation/
+**/fastf1_http_cache.sqlite/
