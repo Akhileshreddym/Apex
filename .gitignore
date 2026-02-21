@@ -16,3 +16,4 @@
 .env
 **/.nextserver/.venv/
 **/.next/
+**/.venv/
