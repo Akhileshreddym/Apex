@@ -105,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     event=event,
                     position=position,
                     stint=stint,
-                    fresh_tyre=fresh_tyre,
+                    fresh_tyre=fresh_tyre
                 )
             except Exception as e:
                 print(f"Simulator error: {e}")
