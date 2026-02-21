@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useChaos } from "@/lib/ChaosContext";
 import { mockTimingData, TIRE_COLORS } from "@/lib/mock-data";
 import { formatLapTime } from "@/lib/format";
@@ -14,6 +14,7 @@ interface SimulationDriver extends TimingDataRow {
 
 export default function CarTimings() {
   const chaos = useChaos();
+  const currentLapRef = useRef(31);
 
   // Initialize with initial standings and calculate base cumulative time
   const [timingData, setTimingData] = useState<SimulationDriver[]>(() => {
@@ -34,6 +35,12 @@ export default function CarTimings() {
   useEffect(() => {
     // Tick every 2.5 seconds (simulating sectors/laps)
     const interval = setInterval(() => {
+      if (currentLapRef.current >= 53) {
+        clearInterval(interval);
+        return;
+      }
+      currentLapRef.current += 1;
+
       setTimingData((prevData) => {
         // First pass: Calculate new cumulative times for everyone
         const updatedDrivers = prevData.map((d) => {
