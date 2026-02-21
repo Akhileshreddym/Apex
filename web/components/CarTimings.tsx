@@ -52,7 +52,14 @@ export default function CarTimings() {
 
           // 1. Base Pace variation (± 0.4s) - Add a bit more variance to encourage overtakes
           const paceVariation = (Math.random() * 1.5) - 0.7;
-          let newLapTime = prevLastLapTime + paceVariation;
+
+          // Generate a completely fresh lap time anchored around ~84.5s (1m24.5s), 
+          // adding tire deg dynamically to the baseline, not compounding it endlessly onto itself.
+          const baseAnchor = 84.5;
+          let newLapTime = baseAnchor + paceVariation;
+
+          // Natural Tire Deg Penalty - Older tires get slower (0.04s per lap of age)
+          newLapTime += (d.TyreLife * 0.04);
 
           // 2. Apply Chaos Effects dynamically
           const event = chaos.event;
@@ -73,8 +80,38 @@ export default function CarTimings() {
             newLapTime += 2; // Simulate losing time
           }
 
-          // Natural Tire Deg Penalty - Older tires get slower
-          newLapTime += (d.TyreLife * 0.05);
+          // 3. Pitting Logic
+          let isPitting = false;
+          let newCompound = d.Compound;
+
+          if (event === "rain" && ["SOFT", "MEDIUM", "HARD"].includes(d.Compound)) {
+            // Everyone boxes for inters during heavy rain
+            isPitting = true;
+            newCompound = "INTERMEDIATE";
+          } else {
+            // Natural pit thresholds
+            let degLimit = 40; // Hard
+            if (d.Compound === "SOFT") degLimit = 18;
+            else if (d.Compound === "MEDIUM") degLimit = 28;
+
+            // Random chance to pit if they exceed their tire's natural life limit
+            if (d.TyreLife > degLimit && Math.random() > 0.4) {
+              isPitting = true;
+              newCompound = "HARD"; // Default to hard for final stint
+            }
+
+            // Strategic cheap pit stops under Safety Car
+            if ((event === "major_crash" || event === "minor_crash") && d.TyreLife > degLimit - 10) {
+              if (Math.random() > 0.5) {
+                isPitting = true;
+                newCompound = "HARD";
+              }
+            }
+          }
+
+          if (isPitting) {
+            newLapTime += 22.5; // Average pit stop loss time
+          }
 
           // Generate new LastLapTime and BestLapTime
           const bestLap = Math.min(newLapTime, prevBestLapTime);
@@ -82,15 +119,14 @@ export default function CarTimings() {
           // Add lap time to cumulative total
           const newCumulativeTime = d.CumulativeTime + newLapTime;
 
-          // Add a small chance of tyre life going up by 1 to simulate laps passing
-          const isNewLap = Math.random() > 0.6;
-
           return {
             ...d,
             LastLapTime: newLapTime,
             BestLapTime: bestLap,
             CumulativeTime: newCumulativeTime,
-            TyreLife: isNewLap ? d.TyreLife + 1 : d.TyreLife,
+            TyreLife: isPitting ? 0 : d.TyreLife + 1,
+            Compound: newCompound,
+            PitCount: isPitting ? (typeof d.PitCount === 'number' ? d.PitCount + 1 : 2) : d.PitCount,
           } as SimulationDriver;
         });
 
