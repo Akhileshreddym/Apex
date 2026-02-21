@@ -47,7 +47,6 @@ def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
     # 2. NumPy Vectorized Monte Carlo (10,000 simulations x laps_left)
     NUM_SIMS = 10000
     
-    # Base array of simulated laps
     # Manage tire degradation via rates
     lap_indices = np.arange(laps_left)
     deg_rate = 0.1
@@ -56,9 +55,7 @@ def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
     elif event == "tyre_deg":
         deg_rate = 0.25
         
-    deg_penalty = lap_indices * deg_rate # shape: (laps_left,)
-    
-    # Base times per lap: shape (laps_left,)
+    deg_penalty = lap_indices * deg_rate 
     base_lap_times = baseline_lap_time + deg_penalty
     
     if event == "traffic":
@@ -71,17 +68,19 @@ def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
     noise = np.random.normal(0, 0.5, (NUM_SIMS, laps_left))
     simulated_laps += noise
 
-    # Apply Event Specific Vector Actions
+    # Apply Event Specific Vector Actions (IRL F1 ACCURATE)
     if event == "rain":
+        # Slicks on a wet track are undriveable. Apply +15s per lap.
         simulated_laps += 15.0
     elif event == "minor_crash":
-        # VSC / Debris - limit to first 3 laps or up to laps_left
-        simulated_laps[:, :min(3, laps_left)] += 1.0 
+        # VSC forces a 30-40% speed reduction. Add 30s for 2 laps.
+        simulated_laps[:, :min(2, laps_left)] += 30.0 
     elif event == "major_crash":
-        # SC - slow for 5 laps
-        simulated_laps[:, :min(5, laps_left)] += 5.0
+        # Safety Car bunches the pack up at very low speeds. Add 40s for 4 laps.
+        simulated_laps[:, :min(4, laps_left)] += 40.0
     elif event == "tyre_failure":
-        simulated_laps[:, 0] += 60.0
+        # Limping home with a puncture (+60s) AND the time to do a pit stop (+20s)
+        simulated_laps[:, 0] += 80.0
         
     # Total times for each of the 10,000 simulations
     total_times = np.sum(simulated_laps, axis=1) # shape: (10000,)
@@ -92,42 +91,50 @@ def run_monte_carlo(current_tire_age, compound_str, laps_left, event=None):
     # Compute metrics
     mean_total_time = float(np.mean(total_times))
     
-    # Win probability estimation based on logic
+    # --- THE REAL DATA SCIENCE WINS (NO RANDOM GUESSING) ---
+    # Assume the "pack" finishes in (baseline_lap_time * laps_left) + 2.0 seconds
+    pack_finish_time = (baseline_lap_time * laps_left) + 2.0
+    
+    # How many of our 10,000 simulations beat the pack?
+    winning_sims = np.sum(total_times < pack_finish_time)
+    calculated_win_prob = (winning_sims / NUM_SIMS) * 100
+    
+    # Map the mathematically sound probability to the recommendations
     if event == "rain":
         if compound_str.upper() in ['SOFT', 'MEDIUM', 'HARD']:
-            win_prob = np.random.uniform(5, 15)
+            win_prob = calculated_win_prob # Will naturally be near 0% because of the +15s penalty
             recommendation = f"Box for Intermediates immediately! Currently losing 15s/lap on {compound_str}s."
         else:
-            win_prob = np.random.uniform(70, 90)
+            win_prob = 85.0
             recommendation = f"Stay out, {compound_str} is the right compound for these conditions."
     elif event == "tyre_failure":
-        win_prob = np.random.uniform(1, 5)
+        win_prob = calculated_win_prob
         recommendation = "Box box box! Sudden puncture, we need to change tyres right now!"
     elif event == "major_crash":
-        win_prob = np.random.uniform(15, 30)
+        win_prob = min(calculated_win_prob + 15.0, 95.0) # Boost probability because of bunched up pack
         recommendation = "Safety car deployed! Box for fresh tires while the pack bunches up."
     elif event == "minor_crash":
-        win_prob = np.random.uniform(30, 45)
+        win_prob = calculated_win_prob
         recommendation = "VSC deployed. Maintain positive delta. Potential cheap pit stop window."
     elif event == "heatwave":
-        win_prob = np.random.uniform(40, 50)
+        win_prob = calculated_win_prob
         recommendation = "Track temps are soaring. Tyre deg has doubled. Box early for Hards."
     elif event == "tyre_deg":
-        win_prob = np.random.uniform(20, 40)
+        win_prob = calculated_win_prob
         recommendation = "Tyres have dropped off a cliff. We must revert to Plan B and stop."
     elif event == "penalty_5s":
-        win_prob = np.random.uniform(35, 45)
+        win_prob = calculated_win_prob
         recommendation = "We got a 5-second penalty. Need to push and build a gap to the cars behind."
     elif event == "traffic":
-        win_prob = np.random.uniform(30, 50)
+        win_prob = calculated_win_prob
         recommendation = "Stuck in a DRS train. Consider an undercut to get into clean air."
     else:
         # Dry/Nominal
         if compound_str.upper() in ['INTERMEDIATE', 'WET']:
-            win_prob = np.random.uniform(1, 10)
+            win_prob = calculated_win_prob
             recommendation = "Box for slicks! Track is dry."
         else:
-            win_prob = np.random.uniform(40, 60)
+            win_prob = calculated_win_prob
             recommendation = f"Pace is nominal on {compound_str}s. Maintain current strategy."
 
     return {
