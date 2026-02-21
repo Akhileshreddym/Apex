@@ -14,4 +14,4 @@
 **/.ipynb_checkpoints
 *.pyc
 .env
-**/.next
+**/.nextserver/.venv/
