@@ -6,6 +6,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from simulator import run_monte_carlo
+from f1_tire_data import get_tire_data
 
 load_dotenv()
 
@@ -88,10 +89,17 @@ async def websocket_endpoint(websocket: WebSocket):
             event = payload.get("event", "").lower()
             print(f"Received chaos event: {event}")
             
-            # Default variables for the demo if not provided
-            current_tire_age = payload.get("current_tire_age", 15)
-            compound_str = payload.get("compound", "MEDIUM")
-            laps_left = payload.get("laps_left", 30)
+            # Get tire data from F1 sources (with fallbacks)
+            # Priority: payload override > F1 session > CSV > estimation
+            driver = payload.get("driver", "VER")
+            f1_tire_info = get_tire_data(driver=driver)
+            
+            # Allow payload to override F1 data if explicitly provided
+            current_tire_age = payload.get("current_tire_age", f1_tire_info.get("current_tire_age", 15))
+            compound_str = payload.get("compound", f1_tire_info.get("compound_str", "MEDIUM"))
+            laps_left = payload.get("laps_left", f1_tire_info.get("laps_left", 30))
+            
+            print(f"Using tire data - Age: {current_tire_age}, Compound: {compound_str}, Laps Left: {laps_left}")
 
             # 1. Run Vectorized Monte Carlo Physics Engine
             try:
