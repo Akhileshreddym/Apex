@@ -14,7 +14,11 @@ import { ChaosProvider, useChaos } from "@/lib/ChaosContext";
 function Dashboard() {
   const chaos = useChaos();
   const [currentLap, setCurrentLap] = useState(31);
+  const [allDrivers, setAllDrivers] = useState<any[]>([]);
   const handleLapChange = useCallback((lap: number) => setCurrentLap(lap), []);
+  const handleLeaderChange = useCallback((leader: any, all?: any[]) => {
+    if (all) setAllDrivers(all);
+  }, []);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-apex-bg overflow-hidden">
@@ -76,7 +80,7 @@ function Dashboard() {
 
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-[300px_1fr_280px] grid-rows-[1fr_1fr] gap-px bg-apex-border overflow-hidden">
-        <div className="row-span-1"><DriverCard /></div>
+        <div className="row-span-1"><DriverCard allDrivers={allDrivers} currentLap={currentLap} /></div>
         <div className="row-span-1"><TrackCanvas onLapChange={handleLapChange} /></div>
         <div className="row-span-1"><StrategyPanel /></div>
         <div className="row-span-1 flex flex-col gap-px bg-apex-border overflow-y-auto">
@@ -84,7 +88,7 @@ function Dashboard() {
           <WeatherPanel />
           <TireDegradation />
         </div>
-        <div className="row-span-1"><CarTimings currentLap={currentLap} /></div>
+        <div className="row-span-1"><CarTimings currentLap={currentLap} onLeaderChange={handleLeaderChange} /></div>
         <div className="row-span-1"><RaceHistory /></div>
       </div>
 

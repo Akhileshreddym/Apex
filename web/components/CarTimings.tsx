@@ -14,10 +14,18 @@ interface SimulationDriver extends TimingDataRow {
 
 interface CarTimingsProps {
   currentLap: number;
+  onLeaderChange?: (leader: SimulationDriver, allDrivers: SimulationDriver[]) => void;
 }
 
-export default function CarTimings({ currentLap }: CarTimingsProps) {
+export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsProps) {
   const chaos = useChaos();
+
+  // Keep callback ref stable
+  const onLeaderChangeRef = useRef(onLeaderChange);
+  useEffect(() => { onLeaderChangeRef.current = onLeaderChange; }, [onLeaderChange]);
+
+  // Store pending notification data to fire AFTER render (avoids setState-during-render)
+  const pendingNotifyRef = useRef<{ leader: SimulationDriver; all: SimulationDriver[] } | null>(null);
 
   // Track the current visual lap without triggering effect restarts
   const lapRef = useRef(currentLap);
@@ -167,12 +175,28 @@ export default function CarTimings({ currentLap }: CarTimingsProps) {
           return driver as SimulationDriver;
         });
 
-        return [...fullyRanked, ...outDrivers];
+        const result = [...fullyRanked, ...outDrivers];
+
+        // Queue notification for after render
+        if (fullyRanked.length > 0) {
+          pendingNotifyRef.current = { leader: fullyRanked[0], all: result };
+        }
+
+        return result;
       });
-    }, 2500);
+    }, 4100);
 
     return () => clearInterval(interval);
   }, [chaos.event]);
+
+  // Fire the deferred notification AFTER the render completes
+  useEffect(() => {
+    if (pendingNotifyRef.current) {
+      const { leader, all } = pendingNotifyRef.current;
+      pendingNotifyRef.current = null;
+      onLeaderChangeRef.current?.(leader, all);
+    }
+  }, [timingData]);
 
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">
