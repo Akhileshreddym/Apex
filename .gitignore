@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/build
+**/out
+**/target
+**/venv
+**/env
+**/data
+**/logs
+**/cache
+**/__pycache__
+**/__pycache__/**
+**/__pycache__/**/**

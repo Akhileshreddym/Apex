@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --apex-bg: #030712;
+  --apex-card: #0a0f1a;
+  --apex-border: #1e293b;
+  --apex-cyan: #22d3ee;
+  --apex-orange: #f97316;
+  --apex-red: #ef4444;
+  --apex-green: #22c55e;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--apex-bg);
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", monospace;
+  overflow: hidden;
+}
+
+@layer components {
+  .apex-card {
+    @apply bg-apex-card border border-apex-border p-3;
+  }
+
+  .apex-label {
+    @apply text-[10px] font-semibold uppercase tracking-widest text-gray-500;
+  }
+
+  .apex-value {
+    @apply font-mono text-sm font-bold text-gray-100;
+  }
+
+  .apex-accent-cyan {
+    @apply text-apex-cyan;
+  }
+
+  .apex-accent-orange {
+    @apply text-apex-orange;
+  }
+
+  .apex-accent-red {
+    @apply text-apex-red;
+  }
+
+  .apex-glow-cyan {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
+  }
+
+  .apex-glow-orange {
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.15);
+  }
+
+  .apex-glow-red {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--apex-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--apex-border);
+}
