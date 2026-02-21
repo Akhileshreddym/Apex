@@ -52,8 +52,10 @@ export default function StrategyPanel() {
     }
 
     let compound: any = "INTERMEDIATE";
-    if (math.recommendation.includes("Hards")) compound = "HARD";
-    else if (math.recommendation.includes("slicks")) compound = "SOFT";
+    const recommendation = math.recommendation || "";
+
+    if (recommendation.includes("Hards")) compound = "HARD";
+    else if (recommendation.includes("slicks")) compound = "SOFT";
     else if (["tyre_deg", "traffic", "penalty_5s"].includes(chaos.event)) {
       compound = "MEDIUM";
     }
@@ -64,8 +66,8 @@ export default function StrategyPanel() {
       priority,
       action: chaos.event.toUpperCase().replace("_", " "),
       Compound: compound,
-      winProb: math.win_probability,
-      detail: math.recommendation,
+      winProb: math.win_probability || 0,
+      detail: recommendation || "Analyzing impact...",
     };
 
     setStrategies((prev) => [newStrategy, ...prev.slice(0, 2)]);
@@ -76,8 +78,8 @@ export default function StrategyPanel() {
       <div className="flex items-center justify-between mb-2">
         <span className="apex-label">STRATEGY</span>
         <span className={`text-[9px] font-bold px-1.5 py-0.5 ${chaos.connected
-            ? 'text-apex-cyan bg-apex-cyan/10 animate-pulse'
-            : 'text-gray-600 bg-gray-800'
+          ? 'text-apex-cyan bg-apex-cyan/10 animate-pulse'
+          : 'text-gray-600 bg-gray-800'
           }`}>
           {chaos.connected ? 'WS:LIVE' : 'STATIC'}
         </span>
