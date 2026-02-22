@@ -3,23 +3,54 @@
 import { useChaos } from "@/lib/ChaosContext";
 import { mockPitWindow } from "@/lib/mock-data";
 
-export default function PitWindow() {
-  const chaos = useChaos();
-  const pit = { ...mockPitWindow };
+interface PitWindowProps {
+  currentLap: number;
+}
 
-  // Shift optimal window based on events
-  if (chaos.event === "rain" || chaos.event === "major_crash" || chaos.event === "tyre_failure") {
-    pit.OptimalWindow = [pit.CurrentLap, pit.CurrentLap + 2];
-    pit.UndercutLap = pit.CurrentLap;
-    pit.UndercutDelta = -1.5;
-  } else if (chaos.event === "tyre_deg" || chaos.event === "heatwave") {
-    pit.OptimalWindow = [pit.CurrentLap + 1, pit.CurrentLap + 4];
-    pit.UndercutLap = pit.CurrentLap + 1;
-    pit.UndercutDelta = -1.0;
+export default function PitWindow({ currentLap }: PitWindowProps) {
+  const chaos = useChaos();
+  const pit = { ...mockPitWindow, CurrentLap: currentLap };
+
+  let windowStart = 33;
+  let windowEnd = 38;
+
+  // Plan B / Plan C logic: If we completely miss the window, recalculate for a later stint
+  if (currentLap > windowEnd) {
+    if (currentLap <= 47) {
+      windowStart = 43;
+      windowEnd = 47;
+    } else {
+      windowStart = 50;
+      windowEnd = 52;
+    }
   }
 
-  const windowStart = pit.OptimalWindow[0];
-  const windowEnd = pit.OptimalWindow[1];
+  let undercutLap = windowStart;
+  let undercutDelta = -0.8;
+  let overcutLap = windowEnd - 1;
+  let overcutDelta = 0.3;
+
+  // Shift optimal window dynamically based on events
+  if (chaos.event === "rain" || chaos.event === "major_crash" || chaos.event === "tyre_failure") {
+    windowStart = currentLap;
+    windowEnd = Math.min(currentLap + 2, pit.TotalLaps);
+    undercutLap = currentLap;
+    undercutDelta = -1.5;
+  } else if (chaos.event === "tyre_deg" || chaos.event === "heatwave") {
+    windowStart = currentLap + 1;
+    windowEnd = Math.min(windowStart + 3, pit.TotalLaps);
+    undercutLap = windowStart;
+    undercutDelta = -1.0;
+  } else if (chaos.event === "traffic") {
+    undercutDelta = -1.8;
+  }
+
+  pit.OptimalWindow = [windowStart, windowEnd];
+  pit.UndercutLap = undercutLap;
+  pit.UndercutDelta = undercutDelta;
+  pit.OvercutLap = overcutLap;
+  pit.OvercutDelta = overcutDelta;
+
   const inWindow = pit.CurrentLap >= windowStart && pit.CurrentLap <= windowEnd;
   const urgentEvent = ["rain", "major_crash", "tyre_failure"].includes(chaos.event);
 
@@ -29,8 +60,8 @@ export default function PitWindow() {
         <span className="apex-label">PIT WINDOW</span>
         {(inWindow || urgentEvent) && (
           <span className={`text-[9px] font-bold px-1.5 py-0.5 animate-pulse-glow ${urgentEvent
-              ? 'text-apex-red bg-apex-red/10'
-              : 'text-apex-orange bg-apex-orange/10'
+            ? 'text-apex-red bg-apex-red/10'
+            : 'text-apex-orange bg-apex-orange/10'
             }`}>
             {urgentEvent ? 'BOX NOW' : 'WINDOW OPEN'}
           </span>

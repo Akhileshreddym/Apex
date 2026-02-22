@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useChaos } from "@/lib/ChaosContext";
 import { weatherForLap, weatherForecastForLap } from "@/lib/mock-data";
 import { degreesToCardinal } from "@/lib/format";
@@ -30,7 +31,7 @@ export default function WeatherPanel({ currentLap = 31 }: WeatherPanelProps) {
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         <div className="flex justify-between">
           <span className="text-[10px] text-gray-500">TRACK</span>
-          <span className={`font-mono text-[11px] font-bold ${trackTemp > 50 ? 'text-apex-red' : 'text-apex-orange'}`}>
+          <span className={`font-mono text-[11px] font-bold ${Number(trackTemp) > 50 ? 'text-apex-red' : 'text-apex-orange'}`}>
             {trackTemp}°C
           </span>
         </div>
