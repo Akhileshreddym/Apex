@@ -70,6 +70,10 @@ load_resources()
 def _build_input_row(tire_age: int,
                      compound: str,
                      lap_number: int,
+                     air_temp: float,
+                     track_temp: float,
+                     humidity: float,
+                     rainfall: int,
                      position: int = 10,
                      stint: int = 1,
                      fresh_tyre: bool = False) -> pd.DataFrame:
@@ -84,6 +88,10 @@ def _build_input_row(tire_age: int,
         "Stint": stint,
         "TyreLife": tire_age,
         "Compound": compound.upper(),
+        "AirTemp": air_temp,
+        "TrackTemp": track_temp,
+        "Humidity": humidity,
+        "Rainfall": rainfall,
     }])
 
 
@@ -92,6 +100,10 @@ def _build_input_row(tire_age: int,
 def run_monte_carlo(current_tire_age: int,
                     compound_str: str,
                     laps_left: int,
+                    air_temp: float,
+                    track_temp: float,
+                    humidity: float,
+                    rainfall: int,
                     event: str | None = None,
                     position: int = 10,
                     stint: int = 1,
@@ -108,6 +120,7 @@ def run_monte_carlo(current_tire_age: int,
 
     # 1. Two-stage prediction for baseline lap time
     row = _build_input_row(current_tire_age, compound_str, current_lap,
+                           air_temp, track_temp, humidity, rainfall,
                            position, stint, fresh_tyre)
     X = preprocessor.transform(row)
     residual = float(xgb_model.predict(X)[0])
@@ -130,9 +143,7 @@ def run_monte_carlo(current_tire_age: int,
     sims = np.broadcast_to(base, (NUM_SIMS, laps_left)).copy()
     sims += np.random.normal(0, 0.5, sims.shape)
 
-    if event == "rain":
-        sims += 15.0
-    elif event == "minor_crash":
+    if event == "minor_crash":
         sims[:, :min(2, laps_left)] += 30.0
     elif event == "major_crash":
         sims[:, :min(4, laps_left)] += 40.0
@@ -144,7 +155,28 @@ def run_monte_carlo(current_tire_age: int,
         totals += 5.0
 
     mean_total = float(np.mean(totals))
-    pack_finish = baseline_lap_time * laps_left + 2.0
+    
+    # Calculate pack finish time (accounting for global events)
+    pack_baseline_lap = baseline_lap_time
+    pack_deg_rate = 0.1
+    
+    if event == "heatwave":
+        pack_deg_rate = 0.2
+    
+    pack_lap_idx = np.arange(laps_left)
+    pack_base_times = pack_baseline_lap + pack_lap_idx * pack_deg_rate
+    
+    # Apply global event penalties to the pack
+    if event == "minor_crash":
+        # VSC slows pack down for ~2 laps
+        pack_base_times[:min(2, laps_left)] += 30.0
+    elif event == "major_crash":
+        # Safety Car slows pack down for ~4 laps
+        pack_base_times[:min(4, laps_left)] += 40.0
+        
+    # Tally up the adjusted pack finish time
+    pack_finish = np.sum(pack_base_times) + 2.0
+    
     calc_wp = float(np.sum(totals < pack_finish) / NUM_SIMS * 100)
 
     wp, rec = _strategy_call(event, compound_str, calc_wp)

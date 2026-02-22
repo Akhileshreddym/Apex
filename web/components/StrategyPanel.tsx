@@ -35,7 +35,7 @@ const PRIORITY_STYLES: Record<
   },
 };
 
-export default function StrategyPanel() {
+export default function StrategyPanel({ currentLap = 1 }: { currentLap?: number }) {
   const chaos = useChaos();
   const [strategies, setStrategies] = useState<StrategyRec[]>(mockStrategies);
 
@@ -62,7 +62,7 @@ export default function StrategyPanel() {
 
     const newStrategy: StrategyRec = {
       id: Math.random().toString(),
-      LapNumber: 31,
+      LapNumber: currentLap,
       priority,
       action: chaos.event.toUpperCase().replace("_", " "),
       Compound: compound,
@@ -70,8 +70,8 @@ export default function StrategyPanel() {
       detail: recommendation || "Analyzing impact...",
     };
 
-    setStrategies((prev) => [newStrategy, ...prev.slice(0, 2)]);
-  }, [chaos.mathResults, chaos.event]);
+    setStrategies((prev) => [newStrategy, ...prev]);
+  }, [chaos.mathResults, chaos.event, currentLap]);
 
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">

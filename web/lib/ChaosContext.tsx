@@ -30,6 +30,10 @@ export interface ChaosState {
     connected: boolean;
 }
 
+export interface ChaosContextValue extends ChaosState {
+    requestStrategy: (payload: any) => void;
+}
+
 export interface ChaosHistoryEntry {
     id: string;
     event: string;
@@ -47,9 +51,13 @@ const DEFAULT_STATE: ChaosState = {
     tireDegRate: 1.0,
     timePenalty: 0,
     connected: false,
+    requestStrategy: () => { },
 };
 
-const ChaosContext = createContext<ChaosState>(DEFAULT_STATE);
+const ChaosContext = createContext<ChaosContextValue>({
+    ...DEFAULT_STATE,
+    requestStrategy: () => { },
+});
 
 export function useChaos() {
     return useContext(ChaosContext);
@@ -108,13 +116,13 @@ export function ChaosProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
-    const { connected } = useWebSocket({
+    const { connected, send } = useWebSocket({
         url: "ws://localhost:8000/ws/chaos",
         onMessage,
     });
 
-    // Merge connected status
-    const value: ChaosState = { ...state, connected };
+    // Merge connected status & send fn
+    const value: ChaosContextValue = { ...state, connected, requestStrategy: send };
 
     return (
         <ChaosContext.Provider value={value}>

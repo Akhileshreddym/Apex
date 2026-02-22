@@ -60,21 +60,25 @@ interface CarState {
 
 interface TrackCanvasProps {
   onLapChange?: (lap: number) => void;
+  playbackSpeed?: number;
 }
 
-export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
+export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsRef = useRef<CarState[]>([]);
   const animRef = useRef<number>(0);
-  const currentLapRef = useRef<number>(31);
-  const [currentLap, setCurrentLap] = useState(31);
+  const currentLapRef = useRef<number>(1);
+  const [currentLap, setCurrentLap] = useState(1);
   const onLapChangeRef = useRef(onLapChange);
   useEffect(() => { onLapChangeRef.current = onLapChange; }, [onLapChange]);
 
+  const playbackSpeedRef = useRef(playbackSpeed);
+  useEffect(() => { playbackSpeedRef.current = playbackSpeed; }, [playbackSpeed]);
+
   const initCars = useCallback(() => {
     const drivers = timingData as any[];
-    // Target 4.09 seconds per lap (90s / 22 laps). 4090 milliseconds.
-    const baseSpeed = TRACK_POINTS.length / 4090;
+    // Target 85.0s per lap real time. 85000 milliseconds.
+    const baseSpeed = TRACK_POINTS.length / 85000;
 
     carsRef.current = drivers.map((d: any, i: number) => ({
       trackIndex: (i * 20) % TRACK_POINTS.length,
@@ -187,30 +191,30 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
 
       const prevIndex = car.trackIndex;
 
-      // Moving logic — slow down during yellow flag
+      // Moving logic — slow down during yellow flag, scale by playbackSpeed
       const effectiveSpeed = isYellow ? car.speed * 0.6 : car.speed;
-      if (currentLapRef.current < 53) {
-        car.trackIndex = (car.trackIndex + effectiveSpeed * dt) % TRACK_POINTS.length;
-      } else {
-        // We are on lap 53. Cars still racing should drive until they hit the line.
-        // The line is essentially index 0 (or crossing from high trackIndex to low).
-        if (car.speed > 0) {
-          car.trackIndex = (car.trackIndex + effectiveSpeed * dt) % TRACK_POINTS.length;
-          // Did they just cross the finish line?
-          if (prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 80) {
-            car.trackIndex = 0;
-            car.speed = 0;
-          }
-        }
+      const moveDist = effectiveSpeed * playbackSpeedRef.current * dt;
+      const nextIndex = car.trackIndex + moveDist;
+      const lapsCrossed = Math.floor(nextIndex / TRACK_POINTS.length);
+
+      if (car.speed > 0) {
+        car.trackIndex = nextIndex % TRACK_POINTS.length;
       }
 
       // Leader lap counter update
-      if (car.Position === 1 && prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 80) {
+      if (car.Position === 1 && lapsCrossed > 0) {
         if (currentLapRef.current < 53) {
-          currentLapRef.current += 1;
+          // Handle mega-skip speeds by jumping multiple laps reliably
+          currentLapRef.current = Math.min(53, currentLapRef.current + lapsCrossed);
           setCurrentLap(currentLapRef.current);
           onLapChangeRef.current?.(currentLapRef.current);
         }
+      }
+
+      // Stop cars gracefully once leader hits Lap 53 and they cross the finish line
+      if (currentLapRef.current >= 53 && car.speed > 0 && lapsCrossed > 0) {
+        car.speed = 0;
+        car.trackIndex = 0;
       }
 
       if (car.trackIndex < 0) car.trackIndex += TRACK_POINTS.length;

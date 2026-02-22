@@ -100,6 +100,13 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
                        .ffill().bfill()
                        .fillna(df[col].median()))
 
+    for col in ("AirTemp", "TrackTemp", "Humidity"):
+        if col in df.columns:
+            df[col] = df.groupby("GP")[col].ffill().bfill().fillna(df[col].median())
+
+    if "Rainfall" in df.columns:
+        df["Rainfall"] = df["Rainfall"].fillna(False).astype(int)
+
     return df
 
 

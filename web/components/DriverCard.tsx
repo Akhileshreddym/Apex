@@ -35,7 +35,7 @@ interface DriverCardProps {
 
 const FOCUS_DRIVER = "APX"; // Focus on the player's car
 
-export default function DriverCard({ allDrivers, currentLap = 31 }: DriverCardProps) {
+export default function DriverCard({ allDrivers, currentLap = 1 }: DriverCardProps) {
   // Always find the focused driver in live data, fallback to finding them in mock data
   const d =
     allDrivers?.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??

@@ -39,16 +39,29 @@ async def generate_radio_call(math_results: dict, event: str) -> str:
     if not api_key:
         return "OpenRouter API key not found. Simulated Radio: Box box box!"
         
-    prompt = f"""
-    You are a highly stressed F1 Race Engineer. 
-    A sudden '{event}' event has occurred.
-    
-    Here is the output from our strategy Monte Carlo simulator:
-    {json.dumps(math_results, indent=2)}
+    if event == "strategy_update":
+        prompt = f"""
+        You are a calm, highly analytical F1 Race Engineer.
+        We are doing a routine strategy check.
+        
+        Here is the output from our strategy Monte Carlo simulator:
+        {json.dumps(math_results, indent=2)}
 
-    Based ONLY on this info, generate exactly a 3-sentence radio call to the driver.
-    Keep it panicked but professional. Include the specific recommendation and win probability.
-    """
+        Based ONLY on this info, generate exactly a 1-to-2 sentence radio call to the driver.
+        Keep it professional, concise, and focused on tire strategy or pace. 
+        Include the specific recommendation and win probability.
+        """
+    else:
+        prompt = f"""
+        You are a highly stressed F1 Race Engineer. 
+        A sudden '{event}' event has occurred.
+        
+        Here is the output from our strategy Monte Carlo simulator:
+        {json.dumps(math_results, indent=2)}
+
+        Based ONLY on this info, generate exactly a 3-sentence radio call to the driver.
+        Keep it panicked but professional. Include the specific recommendation and win probability.
+        """
     
     def fetch_openrouter():
         res = requests.post(
@@ -94,6 +107,11 @@ async def websocket_endpoint(websocket: WebSocket):
             stint = int(payload.get("stint", 1))
             fresh_tyre = bool(payload.get("fresh_tyre", False))
 
+            air_temp = float(payload.get("air_temp", 25.0))
+            track_temp = float(payload.get("track_temp", 35.0))
+            humidity = float(payload.get("humidity", 50.0))
+            rainfall = int(payload.get("rainfall", 0))
+
             print(f"  tire_age={current_tire_age}  compound={compound_str}  "
                   f"laps_left={laps_left}  pos={position}")
 
@@ -102,6 +120,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_tire_age=current_tire_age,
                     compound_str=compound_str,
                     laps_left=laps_left,
+                    air_temp=air_temp,
+                    track_temp=track_temp,
+                    humidity=humidity,
+                    rainfall=rainfall,
                     event=event,
                     position=position,
                     stint=stint,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useChaos } from "@/lib/ChaosContext";
-import { mockTimingData, TIRE_COLORS, trackStatusForLap } from "@/lib/mock-data";
+import { mockTimingData, TIRE_COLORS, trackStatusForLap, weatherForLap } from "@/lib/mock-data";
 import { formatLapTime } from "@/lib/format";
 
 // Extend TimingData with our internal tracking metrics
@@ -33,32 +33,96 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
     lapRef.current = currentLap;
   }, [currentLap]);
 
-  // Initialize with initial standings and calculate base cumulative time
-  const [timingData, setTimingData] = useState<SimulationDriver[]>(() => {
-    return mockTimingData.map((d) => {
-      // Parse the mock "GapToLeader" to create a baseline gap offset at the start
-      let baseOffset = 0;
-      if (d.GapToLeader !== "LEADER" && d.GapToLeader !== "DNF" && d.Status !== "OUT") {
-        baseOffset = parseFloat(d.GapToLeader.replace("+", "")) || 0;
-      }
-      return {
-        ...d,
-        CumulativeTime: baseOffset // Start relative to leader acting as 0
-      } as SimulationDriver;
-    });
-  });
+  // Empty array of drivers to bootstrap state
+  const [timingData, setTimingData] = useState<SimulationDriver[]>([]);
 
-  // Simulation Loop
+  // Track the last processed chaos event to ensure one-time triggers (like targeted crashes) happen exactly once per event
+  const lastEventIdRef = useRef<string>("");
+  const currentVictimRef = useRef<string>("");
+
+  // Initialize with initial standings and calculate base cumulative time
   useEffect(() => {
-    // Tick every 2.5 seconds (simulating sectors/laps)
-    const interval = setInterval(() => {
-      if (lapRef.current >= 53) {
-        clearInterval(interval);
-        return;
-      }
-      setTimingData((prevData) => {
-        // First pass: Calculate new cumulative times for everyone
-        const updatedDrivers = prevData.map((d) => {
+    if (timingData.length === 0) {
+      setTimingData(
+        mockTimingData.map((d) => {
+          let baseOffset = 0;
+          if (d.GapToLeader !== "LEADER" && d.GapToLeader !== "DNF" && d.Status !== "OUT") {
+            baseOffset = parseFloat(d.GapToLeader.replace("+", "")) || 0;
+          }
+          return {
+            ...d,
+            CumulativeTime: baseOffset
+          } as SimulationDriver;
+        })
+      );
+    }
+  }, []); // Only run once on mount
+
+  // Every lap, ask the AI for a strategy update for the APX car
+  useEffect(() => {
+    if (!chaos.connected || timingData.length === 0 || currentLap >= 53) return;
+
+    // Don't override an active crisis event with a generic strategy update
+    if (["major_crash", "minor_crash", "tyre_failure", "rain", "heatwave"].includes(chaos.event)) {
+      return;
+    }
+
+    const apxCar = timingData.find((d) => d.Abbreviation === "APX");
+    if (apxCar) {
+      const sample = weatherForLap(currentLap);
+      const isRaining = chaos.weather.isRaining || sample.Rainfall;
+
+      chaos.requestStrategy({
+        event: "strategy_update",
+        current_tire_age: apxCar.TyreLife,
+        compound: apxCar.Compound,
+        laps_left: 53 - currentLap,
+        position: apxCar.Position,
+        stint: apxCar.PitCount + 1,
+        air_temp: Math.round(sample.AirTemp + chaos.weather.trackTempBoost * 0.5),
+        track_temp: Math.round(sample.TrackTemp + chaos.weather.trackTempBoost),
+        humidity: isRaining ? Math.min(95, sample.Humidity + 20) : sample.Humidity,
+        rainfall: isRaining ? 1 : 0
+      });
+    }
+  }, [currentLap, chaos.connected]);
+
+  const prevLapRef = useRef(0);
+
+  // Simulation Loop - strictly synchronized to the Master Clock (currentLap)
+  useEffect(() => {
+    if (timingData.length === 0 || currentLap <= 1 || currentLap === prevLapRef.current) {
+      if (currentLap <= 1) prevLapRef.current = currentLap;
+      return;
+    }
+
+    const lapsElapsed = currentLap - prevLapRef.current;
+    prevLapRef.current = currentLap;
+
+    setTimingData((prevData) => {
+      let currentIterData = prevData;
+
+      for (let lapTick = 0; lapTick < lapsElapsed; lapTick++) {
+        // Track unique event triggers by the latest event ID
+        const latestEvent = chaos.eventHistory[0];
+        const isNewEvent = latestEvent && latestEvent.id !== lastEventIdRef.current;
+        if (isNewEvent) {
+          lastEventIdRef.current = latestEvent.id;
+
+          if (["major_crash", "tyre_failure", "minor_crash", "penalty_5s"].includes(latestEvent.event)) {
+            const activeOpponents = currentIterData.filter(d => d.Abbreviation !== "APX" && d.Status !== "OUT" && d.GapToLeader !== "DNF");
+            if (activeOpponents.length > 0) {
+              // Pick a true random victim once for this event
+              const targetIndex = Math.floor(Math.random() * activeOpponents.length);
+              currentVictimRef.current = activeOpponents[targetIndex].Abbreviation;
+            }
+          } else {
+            // Clear the current victim for non-crash new events
+            currentVictimRef.current = "";
+          }
+        }
+
+        const updatedDrivers = currentIterData.map((d) => {
           if (d.Status === "OUT" || d.GapToLeader === "DNF") return d as SimulationDriver;
 
           // Safety check for null
@@ -68,57 +132,242 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
           const trackStatus = trackStatusForLap(lapRef.current);
           const isYellow = trackStatus.Status >= 2;
 
-          const baseAnchor = 84.5;
+          // Anchor pace realistically based on the driver's known baseline capabilities, not a flat 84.5
+          // We use BestLapTime as their "Qualifying Pace" baseline. If missing, fallback to 84.5.
+          const baseAnchor = d.BestLapTime && d.BestLapTime > 0 ? d.BestLapTime : 84.5;
           let newLapTime: number;
 
           if (isYellow) {
             // Yellow flag: all cars run at a uniform slow pace, no variance → no overtaking
             newLapTime = baseAnchor + 12;
           } else {
-            const paceVariation = (Math.random() * 1.5) - 0.7;
-            newLapTime = baseAnchor + paceVariation;
-            newLapTime += (d.TyreLife * 0.04);
+            // True Dataset Racing: No massive random rubber-banding.
+            // Cars drive exactly at their capability + standard race pace delta (+1.2s avg) + micro-variance
+            const microVariance = (Math.random() * 0.1) - 0.05; // +/- 0.05s
+            const standardRaceDelta = 1.2;
+            newLapTime = baseAnchor + standardRaceDelta + microVariance;
+
+            // Add tire degradation delta based on compound and age
+            let degMultiplier = 0.04;
+            let compoundDelta = 0;
+            if (d.Compound === "SOFT") { degMultiplier = 0.08; compoundDelta = 0.0; }
+            if (d.Compound === "MEDIUM") { degMultiplier = 0.04; compoundDelta = 0.4; }
+            if (d.Compound === "HARD") { degMultiplier = 0.02; compoundDelta = 0.9; }
+
+            newLapTime += (d.TyreLife * degMultiplier) + compoundDelta;
           }
 
           const event = chaos.event;
 
-          if (event === "major_crash" || event === "minor_crash") {
-            newLapTime += 15;
-          } else if (event === "rain") {
+          // 1. Check if this specific driver is the victim of a targeted chaos event
+          if (d.Abbreviation === currentVictimRef.current) {
+            if (event === "major_crash" || event === "tyre_failure") {
+              return {
+                ...d,
+                Status: "OUT",
+                GapToLeader: "DNF",
+                IntervalToAhead: "-",
+              } as SimulationDriver;
+            } else if (event === "minor_crash") {
+              newLapTime += 30; // Spin out delta
+              currentVictimRef.current = ""; // Clear victim after penalty applied so it doesn't compound every tick
+            } else if (event === "penalty_5s") {
+              newLapTime += 5.0; // One-time 5-second track penalty
+              currentVictimRef.current = "";
+            }
+          }
+
+          // 2. Apply global environmental penalties
+          if (event === "rain") {
             if (["SOFT", "MEDIUM", "HARD"].includes(d.Compound)) {
               newLapTime += 8;
             }
+          } else if (event === "heatwave") {
+            newLapTime += (d.TyreLife * 0.1); // Extra deg penalty
           } else if (event === "traffic") {
             if (d.Position >= 4 && d.Position <= 10) newLapTime += 0.5;
-          } else if (event === "penalty_5s" && d.Position === 1) {
-            newLapTime += 2;
           }
 
           // 3. Pitting Logic
           let isPitting = false;
           let newCompound = d.Compound;
 
-          if (event === "rain" && ["SOFT", "MEDIUM", "HARD"].includes(d.Compound)) {
-            // Everyone boxes for inters during heavy rain
-            isPitting = true;
-            newCompound = "INTERMEDIATE";
-          } else {
-            // Natural pit thresholds
-            let degLimit = 40; // Hard
-            if (d.Compound === "SOFT") degLimit = 18;
-            else if (d.Compound === "MEDIUM") degLimit = 28;
+          const lapsRemaining = 53 - lapRef.current;
+          // Never pit in the final 3 laps unless it's a hard puncture, because a pit stop costs 22.5s.
+          // Over 3 laps, even terrible tires only lose ~10s, so pitting is mathematically a guaranteed position loss.
+          const isLateRace = lapsRemaining <= 3;
 
-            // Random chance to pit if they exceed their tire's natural life limit
-            if (d.TyreLife > degLimit && Math.random() > 0.4) {
-              isPitting = true;
-              newCompound = "HARD"; // Default to hard for final stint
+          // ---- TRUE GLOBAL LOOKAHEAD ENGINE ----
+          // Mathematically integrates remaining lap times to Lap 53 to find the absolute fastest total race time.
+          const simulateRaceToFinish = (pitLapsFromNow: number, secondPitLapsFromNow: number = -1): number => {
+            let totalTime = d.CumulativeTime;
+            let simTyreLife = d.TyreLife;
+            let simCompound = d.Compound;
+
+            for (let i = 0; i < lapsRemaining; i++) {
+              if (i === pitLapsFromNow || i === secondPitLapsFromNow) {
+                totalTime += 22.5; // Standard Pit stop loss
+                simTyreLife = 0;
+
+                // Optimal compound selection for the remaining sprint
+                const lapsLeftAfterPit = lapsRemaining - i;
+                if (lapsLeftAfterPit <= 16) simCompound = "SOFT";
+                else if (lapsLeftAfterPit <= 29) simCompound = "MEDIUM";
+                else simCompound = "HARD";
+              }
+
+              // Calculate base lap time (no random variance in forward-sim)
+              const baseAnchor = (d.BestLapTime ?? 0) > 0 ? d.BestLapTime! : 84.5;
+              let lapTime = baseAnchor + 1.2;
+
+              // Apply degradation deltas
+              let degMultiplier = 0.04;
+              let compoundDelta = 0;
+              if (simCompound === "SOFT") { degMultiplier = 0.08; compoundDelta = 0.0; }
+              if (simCompound === "MEDIUM") { degMultiplier = 0.04; compoundDelta = 0.4; }
+              if (simCompound === "HARD") { degMultiplier = 0.02; compoundDelta = 0.9; }
+
+              lapTime += (simTyreLife * degMultiplier) + compoundDelta;
+
+              // Apply massive cliff drop-off if pushed beyond physical tire limits
+              let limit = 40;
+              if (simCompound === "SOFT") limit = 18;
+              if (simCompound === "MEDIUM") limit = 35; // Stretched medium life from 28 to 35
+
+              if (simTyreLife > limit) {
+                // Lowered the drop-off severity to match real Italian GP wear
+                lapTime += (simTyreLife - limit) * 0.8;
+              }
+
+              // Traffic penalty projection: If pitting drops our total time into the pack (behind slower cars)
+              // simulate dirty air pace deficit so the engine prefers clean air.
+              // We approximate this by adding a penalty if our projected average lap time is slower than the leader.
+              if (i === pitLapsFromNow || i === secondPitLapsFromNow) {
+                // The lap immediately emerging from pits is heavily punished by traffic backmarkers
+                // Reduced from 1.5s to 0.5s to prevent the engine from being "too terrified" to pit
+                lapTime += 0.5;
+              }
+
+              totalTime += lapTime;
+              simTyreLife++;
             }
+            return totalTime;
+          };
 
-            // Strategic cheap pit stops under Safety Car
-            if ((event === "major_crash" || event === "minor_crash") && d.TyreLife > degLimit - 10) {
-              if (Math.random() > 0.5) {
+          // Special logic for APX: Follow the LLM's Strategy Recommendation AND Perfect Natural Strategy
+          if (d.Abbreviation === "APX") {
+            const rec = chaos.mathResults?.recommendation?.toLowerCase() || "";
+            const isChaosBoxing = chaos.event && (rec.includes("box") || rec.includes("pit") || rec.includes("change tyre"));
+
+            if (isChaosBoxing) {
+              // Priority 1: Reactive LLM Strategy to Chaos
+              if (d.TyreLife > 1 && (!isLateRace || chaos.event === "tyre_failure")) {
                 isPitting = true;
-                newCompound = "HARD";
+                if (rec.includes("intermediate") || rec.includes("inters")) newCompound = "INTERMEDIATE";
+                else if (rec.includes("wet")) newCompound = "WET";
+                else if (rec.includes("soft")) newCompound = "SOFT";
+                else if (rec.includes("medium")) newCompound = "MEDIUM";
+                else if (rec.includes("hard")) newCompound = "HARD";
+                else newCompound = "MEDIUM"; // Fallback
+              }
+            } else {
+              // Priority 2: Global Lookahead Engine + Opponent Awareness
+              let bestTime = simulateRaceToFinish(-1); // Baseline: Do not pit
+              let bestPitLap = -1;
+              let isTwoStopOptimal = false;
+
+              // Execute forward projection into the future to find the absolute min-time strategy
+              if (!isLateRace && d.TyreLife > 1) {
+                // UNBOUNDED LOOKAHEAD: Test a pit stop on every single remaining lap of the race
+                for (let i = 0; i <= lapsRemaining - 1; i++) {
+                  // Test 1-Stop
+                  const simTime1 = simulateRaceToFinish(i);
+                  // Aggressive threshold: If the math saves even 0.1s over the entire race, take it
+                  if (simTime1 < bestTime - 0.1) {
+                    bestTime = simTime1;
+                    bestPitLap = i;
+                    isTwoStopOptimal = false;
+                  }
+
+                  // Test 2-Stop (Iterate every possible combination of second-stop stints)
+                  if (i <= lapsRemaining - 20) {
+                    for (let j = i + 15; j < lapsRemaining - 5; j++) {
+                      const simTime2 = simulateRaceToFinish(i, j);
+                      // 2-stop carries traffic risk, but we lowered the threshold to 0.2s advantage
+                      if (simTime2 < bestTime - 0.2) {
+                        bestTime = simTime2;
+                        bestPitLap = i;
+                        isTwoStopOptimal = true;
+                      }
+                    }
+                  }
+                }
+              }
+
+              // ---- OPPONENT AWARENESS ENGINE ----
+              const carAhead = prevData.find(x => x.Position === d.Position - 1 && x.Status !== "OUT");
+              const carBehind = prevData.find(x => x.Position === d.Position + 1 && x.Status !== "OUT");
+
+              const gapToAhead = carAhead ? d.CumulativeTime - carAhead.CumulativeTime : 999;
+              const gapToBehind = carBehind ? carBehind.CumulativeTime - d.CumulativeTime : 999;
+
+              let isUndercutting = false;
+              let isCoveringOff = false;
+
+              // UNDERCUT: If stuck $< 1.0s behind (in dirty air losing time) AND our engine mathematically proves
+              // we should pit anyway in the next 4 laps, box immediately for fresh tires to leapfrog them.
+              if (carAhead && gapToAhead < 1.0 && bestPitLap > 0 && bestPitLap <= 4 && !isLateRace) {
+                isUndercutting = true;
+              }
+
+              // COVER OFF: If the car behind is very close (< 2.5s) and they literally just pitted, we must pit to defend 
+              // track position BEFORE their fresh tires close the gap, but ONLY if we haven't already pitted recently.
+              if (carBehind && gapToBehind < 2.5 && carBehind.TyreLife <= 2 && carBehind.PitCount > d.PitCount && !isLateRace) {
+                isCoveringOff = true;
+              }
+
+              // Opportunistic cheap pit stops under VSC/SC (loss time is reduced, so engine threshold is wider)
+              const cheapPitWindow = (event === "major_crash" || event === "minor_crash") && (bestPitLap !== -1 && bestPitLap <= 8);
+
+              // Execute pit based strictly on real-time matrix, eliminating dumb arbitrary 2-stops
+              if (bestPitLap === 0 || isUndercutting || isCoveringOff || cheapPitWindow) {
+                isPitting = true;
+
+                // Lock in the best compound to the end dynamically based on laps remaining
+                if (isTwoStopOptimal) {
+                  newCompound = "SOFT"; // Absolute sprint pace since we know we're stopping again
+                } else {
+                  if (lapsRemaining <= 16) newCompound = "SOFT";
+                  else if (lapsRemaining <= 29) newCompound = "MEDIUM";
+                  else newCompound = "HARD";
+                }
+              }
+            }
+          }
+          // Logic for the other 19 ghost cars (Bots)
+          else {
+            if (event === "rain" && ["SOFT", "MEDIUM", "HARD"].includes(d.Compound) && !isLateRace) {
+              // Everyone boxes for inters during heavy rain
+              isPitting = true;
+              newCompound = "INTERMEDIATE";
+            } else {
+              // Natural pit thresholds
+              let degLimit = 40; // Hard
+              if (d.Compound === "SOFT") degLimit = 18;
+              else if (d.Compound === "MEDIUM") degLimit = 28;
+
+              // Random chance to pit if they exceed their tire's natural life limit
+              if (d.TyreLife > degLimit && Math.random() > 0.4 && !isLateRace) {
+                isPitting = true;
+                newCompound = "HARD"; // Default to hard for final stint
+              }
+
+              // Strategic cheap pit stops under Safety Car
+              if ((event === "major_crash" || event === "minor_crash") && d.TyreLife > degLimit - 10 && !isLateRace) {
+                if (Math.random() > 0.5) {
+                  isPitting = true;
+                  newCompound = "HARD";
+                }
               }
             }
           }
@@ -181,12 +430,13 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
           pendingNotifyRef.current = { leader: fullyRanked[0], all: result };
         }
 
-        return result;
-      });
-    }, 4100);
+        currentIterData = result;
+      }
 
-    return () => clearInterval(interval);
-  }, [chaos.event]);
+      return currentIterData;
+    });
+
+  }, [currentLap, chaos.eventHistory, chaos.event, timingData.length]);
 
   // Fire the deferred notification AFTER the render completes
   useEffect(() => {
@@ -232,8 +482,8 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
               <div
                 key={d.Abbreviation} // Key maintains identity so DOM nodes slide if animated
                 className={`grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 items-center py-1.5 px-1 border-b transition-colors ${d.Abbreviation === "APX"
-                    ? "bg-[#FFD700]/10 border-[#FFD700]/40 hover:bg-[#FFD700]/20"
-                    : "border-gray-800/30 hover:bg-white/[0.02]"
+                  ? "bg-[#FFD700]/10 border-[#FFD700]/40 hover:bg-[#FFD700]/20"
+                  : "border-gray-800/30 hover:bg-white/[0.02]"
                   } ${d.Status === "OUT" ? "opacity-30" : ""}`}
               >
                 <div className="flex justify-center items-center">

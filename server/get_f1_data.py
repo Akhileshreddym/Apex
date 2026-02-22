@@ -48,6 +48,7 @@ LAP_COLS = [
     "SpeedI1", "SpeedI2", "SpeedFL", "SpeedST",
     "IsPersonalBest", "FreshTyre", "Team",
     "Position", "IsAccurate", "Stint",
+    "AirTemp", "TrackTemp", "Humidity", "Rainfall"
 ]
 
 TIMEDELTA_COLS = [
@@ -76,6 +77,15 @@ def _to_seconds(val):
 
 def extract_laps(session, race: dict) -> pd.DataFrame:
     laps = session.laps
+    
+    # Merge fastf1 weather telemetry
+    try:
+        weather_data = laps.get_weather_data()
+        for col in ["AirTemp", "TrackTemp", "Humidity", "Rainfall"]:
+            laps[col] = weather_data[col].values
+    except Exception as e:
+        print(f"Warning: Could not fetch weather data: {e}")
+
     available = [c for c in LAP_COLS if c in laps.columns]
     df = laps[available].copy()
 

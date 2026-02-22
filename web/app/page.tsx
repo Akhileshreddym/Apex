@@ -14,7 +14,8 @@ import { trackStatusForLap } from "@/lib/mock-data";
 
 function Dashboard() {
   const chaos = useChaos();
-  const [currentLap, setCurrentLap] = useState(31);
+  const [currentLap, setCurrentLap] = useState(1);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [allDrivers, setAllDrivers] = useState<any[]>([]);
   const handleLapChange = useCallback((lap: number) => setCurrentLap(lap), []);
   const handleLeaderChange = useCallback((leader: any, all?: any[]) => {
@@ -36,6 +37,26 @@ function Dashboard() {
           <span className="text-[10px] text-gray-500 uppercase tracking-wider">
             PIT WALL — ITALIAN GRAND PRIX
           </span>
+        </div>
+
+        {/* Playback Controls */}
+        <div className="flex items-center gap-2 flex-1 justify-center px-4">
+          {[1, 2, 5, 10, 50].map(speed => (
+            <button
+              key={speed}
+              onClick={() => setPlaybackSpeed(speed)}
+              className={`px-2 py-0.5 text-[10px] font-mono rounded transition-colors ${playbackSpeed === speed ? 'bg-apex-red text-white font-bold' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+            >
+              {speed}x
+            </button>
+          ))}
+          <div className="w-px h-3 bg-gray-700 mx-1" />
+          <button
+            onClick={() => setPlaybackSpeed(5000)}
+            className={`px-2 py-0.5 text-[10px] font-mono rounded transition-colors ${playbackSpeed === 5000 ? 'bg-apex-cyan text-black font-bold' : 'bg-apex-cyan/20 text-apex-cyan hover:bg-apex-cyan/40'}`}
+          >
+            SKIP TO RESULTS
+          </button>
         </div>
 
         <div className="flex items-center gap-4">
@@ -82,15 +103,15 @@ function Dashboard() {
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-[300px_1fr_280px] grid-rows-[1fr_1fr] gap-px bg-apex-border overflow-hidden min-h-0">
         <div className="row-span-1 min-h-0"><DriverCard allDrivers={allDrivers} currentLap={currentLap} /></div>
-        <div className="row-span-1 min-h-0"><TrackCanvas onLapChange={handleLapChange} /></div>
-        <div className="row-span-1 min-h-0"><StrategyPanel /></div>
+        <div className="row-span-1 min-h-0"><TrackCanvas onLapChange={handleLapChange} playbackSpeed={playbackSpeed} /></div>
+        <div className="row-span-1 min-h-0"><StrategyPanel currentLap={currentLap} /></div>
         <div className="row-span-1 flex flex-col gap-px bg-apex-border overflow-y-auto min-h-0">
           <PitWindow currentLap={currentLap} />
           <WeatherPanel />
           <TireDegradation />
         </div>
         <div className="row-span-1 min-h-0"><CarTimings currentLap={currentLap} onLeaderChange={handleLeaderChange} /></div>
-        <div className="row-span-1 min-h-0"><RaceHistory /></div>
+        <div className="row-span-1 min-h-0"><RaceHistory currentLap={currentLap} /></div>
       </div>
 
       {/* Bottom Status Ticker Bar */}

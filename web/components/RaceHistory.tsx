@@ -28,17 +28,19 @@ const CHAOS_TO_TYPE: Record<string, RaceEvent["type"]> = {
   tyre_deg: "strategy",
 };
 
-export default function RaceHistory() {
+export default function RaceHistory({ currentLap = 1 }: { currentLap?: number }) {
   const chaos = useChaos();
 
-  // Merge chaos events into the race feed
-  const chaosEvents: RaceEvent[] = chaos.eventHistory.map((e) => ({
-    id: e.id,
-    LapNumber: 31,
-    Time: e.timestamp / 1000,
-    type: CHAOS_TO_TYPE[e.event] ?? "strategy",
-    description: `${e.event.toUpperCase().replace("_", " ")} — ${e.recommendation}`,
-  }));
+  // Merge chaos events into the race feed (excluding routine strategy updates)
+  const chaosEvents: RaceEvent[] = chaos.eventHistory
+    .filter(e => e.event !== "strategy_update")
+    .map((e) => ({
+      id: e.id,
+      LapNumber: currentLap,
+      Time: e.timestamp / 1000,
+      type: CHAOS_TO_TYPE[e.event] ?? "incident",
+      description: `${e.event.toUpperCase().replace("_", " ")} — ${e.recommendation}`,
+    }));
 
   const allEvents = [...chaosEvents, ...raceEvents];
 
