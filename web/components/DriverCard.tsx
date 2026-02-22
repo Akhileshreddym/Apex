@@ -25,6 +25,7 @@ const COUNTRY_FLAGS: Record<string, string> = {
   "Nico Hulkenberg": "🇩🇪",
   "Guanyu Zhou": "🇨🇳",
   "Pierre Gasly": "🇫🇷",
+  "Apex AI": "🤖",
 };
 
 interface DriverCardProps {
@@ -32,11 +33,14 @@ interface DriverCardProps {
   currentLap?: number;
 }
 
-const FOCUS_DRIVER = "VER"; // Always focus on Verstappen
+const FOCUS_DRIVER = "APX"; // Focus on the player's car
 
 export default function DriverCard({ allDrivers, currentLap = 31 }: DriverCardProps) {
-  // Always find VER in the live data, fall back to mock
-  const d = allDrivers?.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ?? mockTimingData[0];
+  // Always find the focused driver in live data, fallback to finding them in mock data
+  const d =
+    allDrivers?.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
+    mockTimingData.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
+    mockTimingData[0];
   const tireColor = TIRE_COLORS[d.Compound] ?? "#64748b";
 
   // Simulate speed, gear, and RPM that update every tick
@@ -86,7 +90,7 @@ export default function DriverCard({ allDrivers, currentLap = 31 }: DriverCardPr
           }}
         >
           <img
-            src="/driver_ver.png"
+            src={d.Abbreviation === "APX" ? "/driver_apx.jpg" : "/driver_ver.png"}
             alt={d.FullName}
             className="w-full h-full object-cover object-top"
           />

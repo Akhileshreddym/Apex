@@ -231,8 +231,10 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
             return (
               <div
                 key={d.Abbreviation} // Key maintains identity so DOM nodes slide if animated
-                className={`grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 items-center py-1.5 px-1 border-b border-gray-800/30 hover:bg-white/[0.02] transition-colors ${d.Status === "OUT" ? "opacity-30" : ""
-                  }`}
+                className={`grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 items-center py-1.5 px-1 border-b transition-colors ${d.Abbreviation === "APX"
+                    ? "bg-[#FFD700]/10 border-[#FFD700]/40 hover:bg-[#FFD700]/20"
+                    : "border-gray-800/30 hover:bg-white/[0.02]"
+                  } ${d.Status === "OUT" ? "opacity-30" : ""}`}
               >
                 <div className="flex justify-center items-center">
                   <span
@@ -247,12 +249,12 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
                     className="w-1 h-3.5 mr-2 rounded-sm"
                     style={{ backgroundColor: `#${d.TeamColor}` }}
                   />
-                  <span className="font-mono text-[11px] font-bold text-gray-100">
+                  <span className={`font-mono text-[11px] font-bold ${d.Abbreviation === "APX" ? "text-[#FFD700]" : "text-gray-100"}`}>
                     {d.Abbreviation}
                   </span>
                 </div>
 
-                <span className="text-[10px] text-gray-500 truncate lowercase font-light" style={{ fontVariant: 'small-caps', letterSpacing: '0.05em' }}>
+                <span className={`text-[10px] truncate lowercase font-light ${d.Abbreviation === "APX" ? "text-[#FFD700]/80" : "text-gray-500"}`} style={{ fontVariant: 'small-caps', letterSpacing: '0.05em' }}>
                   {d.FullName}
                 </span>
 

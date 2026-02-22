@@ -7,7 +7,7 @@
     "TeamName": "Red Bull Racing",
     "TeamColor": "3671C6",
     "GapToLeader": "LEADER",
-    "IntervalToAhead": "\u2014",
+    "IntervalToAhead": "—",
     "LastLapTime": 85.502,
     "BestLapTime": 85.24,
     "Sector1Time": 26.933,
@@ -141,6 +141,26 @@
   },
   {
     "Position": 8,
+    "DriverNumber": "20",
+    "Abbreviation": "APX",
+    "FullName": "Apex AI",
+    "TeamName": "Apex Racing",
+    "TeamColor": "FFD700",
+    "GapToLeader": "+1.150",
+    "IntervalToAhead": "+0.004",
+    "LastLapTime": 85.789,
+    "BestLapTime": 85.529,
+    "Sector1Time": 27.024,
+    "Sector2Time": 33.887,
+    "Sector3Time": 24.879,
+    "Compound": "MEDIUM",
+    "TyreLife": 15,
+    "Stint": 2,
+    "PitCount": 1,
+    "Status": "RACING"
+  },
+  {
+    "Position": 9,
     "DriverNumber": "77",
     "Abbreviation": "BOT",
     "FullName": "Valtteri Bottas",
@@ -160,7 +180,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 9,
+    "Position": 10,
     "DriverNumber": "23",
     "Abbreviation": "ALB",
     "FullName": "Alexander Albon",
@@ -180,7 +200,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 10,
+    "Position": 11,
     "DriverNumber": "14",
     "Abbreviation": "ALO",
     "FullName": "Fernando Alonso",
@@ -200,7 +220,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 11,
+    "Position": 12,
     "DriverNumber": "81",
     "Abbreviation": "PIA",
     "FullName": "Oscar Piastri",
@@ -220,7 +240,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 12,
+    "Position": 13,
     "DriverNumber": "4",
     "Abbreviation": "NOR",
     "FullName": "Lando Norris",
@@ -240,7 +260,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 13,
+    "Position": 14,
     "DriverNumber": "31",
     "Abbreviation": "OCO",
     "FullName": "Esteban Ocon",
@@ -260,7 +280,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 14,
+    "Position": 15,
     "DriverNumber": "2",
     "Abbreviation": "SAR",
     "FullName": "Logan Sargeant",
@@ -280,7 +300,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 15,
+    "Position": 16,
     "DriverNumber": "20",
     "Abbreviation": "MAG",
     "FullName": "Kevin Magnussen",
@@ -300,7 +320,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 16,
+    "Position": 17,
     "DriverNumber": "40",
     "Abbreviation": "LAW",
     "FullName": "Liam Lawson",
@@ -320,7 +340,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 17,
+    "Position": 18,
     "DriverNumber": "27",
     "Abbreviation": "HUL",
     "FullName": "Nico Hulkenberg",
@@ -340,7 +360,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 18,
+    "Position": 19,
     "DriverNumber": "24",
     "Abbreviation": "ZHO",
     "FullName": "Guanyu Zhou",
@@ -360,7 +380,7 @@
     "Status": "RACING"
   },
   {
-    "Position": 19,
+    "Position": 20,
     "DriverNumber": "10",
     "Abbreviation": "GAS",
     "FullName": "Pierre Gasly",
