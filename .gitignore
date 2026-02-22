@@ -19,3 +19,4 @@
 **/.venv/
 documentation/
 **/fastf1_http_cache.sqlite/
+server/server.log
