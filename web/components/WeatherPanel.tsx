@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useChaos } from "@/lib/ChaosContext";
 import { mockWeather, mockWeatherForecast } from "@/lib/mock-data";
 import { degreesToCardinal } from "@/lib/format";
@@ -7,11 +8,42 @@ import { degreesToCardinal } from "@/lib/format";
 export default function WeatherPanel() {
   const chaos = useChaos();
 
-  // Apply chaos-driven weather overrides
-  const trackTemp = Math.round(mockWeather.TrackTemp + chaos.weather.trackTempBoost);
-  const airTemp = Math.round(mockWeather.AirTemp + chaos.weather.trackTempBoost * 0.5);
+  // State for live fluctuating data
+  const [liveData, setLiveData] = useState({
+    trackTempOffset: 0,
+    airTempOffset: 0,
+    windSpeedOffset: 0,
+    humidityOffset: 0,
+    pressureOffset: 0,
+  });
+
+  useEffect(() => {
+    // Update weather slightly every second to simulate live sensor data
+    const interval = setInterval(() => {
+      setLiveData({
+        trackTempOffset: (Math.random() * 0.8) - 0.4,
+        airTempOffset: (Math.random() * 0.2) - 0.1,
+        windSpeedOffset: (Math.random() * 1.5) - 0.75,
+        humidityOffset: Math.floor(Math.random() * 3) - 1,
+        pressureOffset: (Math.random() * 0.4) - 0.2,
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Apply chaos-driven weather overrides + live fluctuations
+  const baseTrackRaw = mockWeather.TrackTemp + chaos.weather.trackTempBoost;
+  const trackTemp = (baseTrackRaw + liveData.trackTempOffset).toFixed(1);
+
+  const baseAirRaw = mockWeather.AirTemp + (chaos.weather.trackTempBoost * 0.5);
+  const airTemp = (baseAirRaw + liveData.airTempOffset).toFixed(1);
+
   const isRaining = chaos.weather.isRaining || mockWeather.Rainfall;
-  const humidity = isRaining ? Math.min(95, mockWeather.Humidity + 20) : mockWeather.Humidity;
+  const baseHumidity = isRaining ? Math.min(95, mockWeather.Humidity + 20) : mockWeather.Humidity;
+  const humidity = Math.max(0, Math.min(100, baseHumidity + liveData.humidityOffset));
+
+  const windSpeed = Math.max(0, mockWeather.WindSpeed + liveData.windSpeedOffset).toFixed(1);
+  const pressure = (mockWeather.Pressure + liveData.pressureOffset).toFixed(1);
   const windCardinal = degreesToCardinal(mockWeather.WindDirection);
 
   return (
@@ -24,7 +56,7 @@ export default function WeatherPanel() {
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         <div className="flex justify-between">
           <span className="text-[10px] text-gray-500">TRACK</span>
-          <span className={`font-mono text-[11px] font-bold ${trackTemp > 50 ? 'text-apex-red' : 'text-apex-orange'}`}>
+          <span className={`font-mono text-[11px] font-bold ${Number(trackTemp) > 50 ? 'text-apex-red' : 'text-apex-orange'}`}>
             {trackTemp}°C
           </span>
         </div>

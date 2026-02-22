@@ -73,8 +73,8 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
 
   const initCars = useCallback(() => {
     const drivers = timingData as any[];
-    // Target ~4.1 seconds per lap (90 seconds / 22 laps left). At 60fps, that's 246 frames.
-    const baseSpeed = TRACK_POINTS.length / 246;
+    // Target 4.09 seconds per lap (90s / 22 laps). 4090 milliseconds.
+    const baseSpeed = TRACK_POINTS.length / 4090;
 
     carsRef.current = drivers.map((d: any, i: number) => ({
       trackIndex: (i * 20) % TRACK_POINTS.length,
@@ -87,7 +87,12 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
     }));
   }, []);
 
-  const render = useCallback(() => {
+  const lastTimeRef = useRef<number>(0);
+
+  const render = useCallback((time: number) => {
+    const dt = lastTimeRef.current ? time - lastTimeRef.current : 16.66;
+    lastTimeRef.current = time;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -182,12 +187,12 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
       // Moving logic
       if (currentLapRef.current < 53) {
         // Normal racing
-        car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+        car.trackIndex = (car.trackIndex + car.speed * dt) % TRACK_POINTS.length;
       } else {
         // We are on lap 53. Cars still racing should drive until they hit the line.
         // The line is essentially index 0 (or crossing from high trackIndex to low).
         if (car.speed > 0) { // If they haven't finished yet
-          car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+          car.trackIndex = (car.trackIndex + car.speed * dt) % TRACK_POINTS.length;
 
           // Did they just cross the finish line?
           if (prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 50) {

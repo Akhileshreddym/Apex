@@ -84,7 +84,7 @@ function Dashboard() {
         <div className="row-span-1"><TrackCanvas onLapChange={handleLapChange} /></div>
         <div className="row-span-1"><StrategyPanel /></div>
         <div className="row-span-1 flex flex-col gap-px bg-apex-border overflow-y-auto">
-          <PitWindow />
+          <PitWindow currentLap={currentLap} />
           <WeatherPanel />
           <TireDegradation />
         </div>
