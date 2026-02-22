@@ -42,14 +42,14 @@ from xgboost import XGBRegressor
 # ──────────────────────────────────────────────
 # Constants
 # ──────────────────────────────────────────────
-TRAIN_CSV = "laps_train.csv"
-TEST_CSV = "laps_test.csv"
+TRAIN_CSV = "data/laps_train.csv"
+TEST_CSV = "data/laps_test.csv"
 DATA_DIR = "data"
 
-PACE_MODEL_PATH = "pace_model_v2.joblib"
-MODEL_PATH = "engine_v2.joblib"
-PREPROCESSOR_PATH = "preprocessor_v2.joblib"
-FEATURE_COLS_PATH = "feature_columns_v2.json"
+PACE_MODEL_PATH = "models/pace_model_v2.joblib"
+MODEL_PATH = "models/engine_v2.joblib"
+PREPROCESSOR_PATH = "models/preprocessor_v2.joblib"
+FEATURE_COLS_PATH = "models/feature_columns_v2.json"
 
 TARGET = "LapTime"
 
@@ -280,6 +280,7 @@ def train():
 
     # ── Persist ───────────────────────────────────────────────────────────
     os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs("models", exist_ok=True)
 
     joblib.dump({"poly": poly, "ridge": pace_model}, PACE_MODEL_PATH)
     print(f"\n  Pace model   → {PACE_MODEL_PATH}")

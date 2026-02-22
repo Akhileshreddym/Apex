@@ -37,25 +37,25 @@ MONZA_EST_PACE = None  # computed from pace model on load
 def load_resources():
     global poly_tf, pace_ridge, xgb_model, preprocessor, feature_cols, MONZA_EST_PACE
     try:
-        for path in ("pace_model_v2.joblib",
-                     "engine_v2.joblib",
-                     "preprocessor_v2.joblib"):
+        for path in ("models/pace_model_v2.joblib",
+                     "models/engine_v2.joblib",
+                     "models/preprocessor_v2.joblib"):
             if not os.path.exists(path):
                 print(f"Warning: {path} not found")
                 return False
 
-        pace_bundle = joblib.load("pace_model_v2.joblib")
+        pace_bundle = joblib.load("models/pace_model_v2.joblib")
         poly_tf = pace_bundle["poly"]
         pace_ridge = pace_bundle["ridge"]
-        xgb_model = joblib.load("engine_v2.joblib")
-        preprocessor = joblib.load("preprocessor_v2.joblib")
+        xgb_model = joblib.load("models/engine_v2.joblib")
+        preprocessor = joblib.load("models/preprocessor_v2.joblib")
 
         X_monza = poly_tf.transform([[MONZA_TRACK_KM, MONZA_CORNERS]])
         MONZA_EST_PACE = float(pace_ridge.predict(X_monza)[0])
         print(f"Monza estimated base pace: {MONZA_EST_PACE:.1f}s")
 
-        if os.path.exists("feature_columns_v2.json"):
-            with open("feature_columns_v2.json") as f:
+        if os.path.exists("models/feature_columns_v2.json"):
+            with open("models/feature_columns_v2.json") as f:
                 feature_cols = json.load(f)
 
         return True
