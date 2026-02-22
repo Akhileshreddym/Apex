@@ -1,0 +1,20 @@
+[
+  {
+    "Time": 112.215,
+    "Status": 1,
+    "Message": "AllClear",
+    "Lap": 1
+  },
+  {
+    "Time": 3758.176,
+    "Status": 2,
+    "Message": "Yellow",
+    "Lap": 44
+  },
+  {
+    "Time": 4320.217,
+    "Status": 1,
+    "Message": "AllClear",
+    "Lap": 50
+  }
+]

@@ -2,7 +2,7 @@
 get_f1_data.py
 --------------
 Downloads lap data from 11 GPs (10 for training, 1 held-out test)
-and exports CSV files for the ML pipeline and frontend UI.
+and exports CSV files for the ML pipeline + JSON files for the frontend UI.
 
 Training GPs (10): chosen to span the full range of circuit types
     — corner counts from 10 (Austria) to 27 (Saudi Arabia)
@@ -15,6 +15,8 @@ model can learn to generalise across tracks rather than memorising one.
 """
 
 import fastf1
+import json
+import math
 import pandas as pd
 import os
 
@@ -22,11 +24,9 @@ if not os.path.exists("cache"):
     os.makedirs("cache")
 fastf1.Cache.enable_cache("cache")
 
-# ── Race definitions ─────────────────────────────────────────────────────
-# 10 training circuits selected for diversity in layout and speed profile.
-# Austria (10 corners) is critical — without it, Monza's 11 corners would
-# be below the training range, forcing XGBoost to extrapolate (which it
-# cannot do).
+WEB_LIB = os.path.join(os.path.dirname(__file__), "..", "web", "lib")
+AVG_LAP_SEC = 86  # Monza average lap time for time→lap conversion
+
 RACES = [
     {"year": 2023, "gp": "Bahrain",       "track_km": 5.412, "corners": 15, "split": "train"},
     {"year": 2023, "gp": "Saudi Arabia",   "track_km": 6.174, "corners": 27, "split": "train"},
@@ -38,7 +38,6 @@ RACES = [
     {"year": 2023, "gp": "Hungary",        "track_km": 4.381, "corners": 14, "split": "train"},
     {"year": 2023, "gp": "Belgium",        "track_km": 7.004, "corners": 19, "split": "train"},
     {"year": 2023, "gp": "Japan",          "track_km": 5.807, "corners": 18, "split": "train"},
-    # Held-out test race
     {"year": 2023, "gp": "Italy",          "track_km": 5.793, "corners": 11, "split": "test"},
 ]
 
@@ -65,6 +64,16 @@ def _td_to_sec(series: pd.Series) -> pd.Series:
         return pd.to_numeric(series, errors="coerce")
 
 
+def _to_seconds(val):
+    """Convert a timedelta or numeric value to float seconds."""
+    if hasattr(val, "total_seconds"):
+        return val.total_seconds()
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def extract_laps(session, race: dict) -> pd.DataFrame:
     laps = session.laps
     available = [c for c in LAP_COLS if c in laps.columns]
@@ -83,15 +92,119 @@ def extract_laps(session, race: dict) -> pd.DataFrame:
     return df
 
 
-def _save_timedelta_csv(df: pd.DataFrame, path: str):
-    out = df.copy()
-    for col in out.columns:
-        if pd.api.types.is_timedelta64_dtype(out[col]):
-            out[col] = out[col].dt.total_seconds()
-    out.to_csv(path, index=False)
+# ── JSON export helpers for the frontend ──────────────────────────────────
+
+def _export_weather_json(weather_df, path):
+    """Convert session.weather_data → weather_data.json"""
+    records = []
+    for _, row in weather_df.iterrows():
+        records.append({
+            "Time": round(_to_seconds(row.get("Time", 0)), 3),
+            "AirTemp": float(row.get("AirTemp", 0)),
+            "Humidity": float(row.get("Humidity", 0)),
+            "Pressure": float(row.get("Pressure", 0)),
+            "Rainfall": bool(row.get("Rainfall", False)),
+            "TrackTemp": float(row.get("TrackTemp", 0)),
+            "WindDirection": int(row.get("WindDirection", 0)),
+            "WindSpeed": float(row.get("WindSpeed", 0)),
+        })
+    with open(path, "w") as f:
+        json.dump(records, f, separators=(",", ":"))
+    return len(records)
+
+
+def _export_race_events_json(rc_df, path):
+    """Convert session.race_control_messages → race_events_data.json"""
+    skip_prefixes = ("ROLLING START", "GREEN LIGHT", "CAR", "BLACK AND WHITE")
+    events = []
+    idx = 0
+    for _, row in rc_df.iterrows():
+        msg = str(row.get("Message", "")).strip()
+        if not msg:
+            continue
+        msg_upper = msg.upper()
+        if any(msg_upper.startswith(p) for p in skip_prefixes):
+            pass  # keep these — they're informative (deleted laps, flags)
+
+        time_sec = _to_seconds(row.get("Time", 0))
+        lap = max(1, round(time_sec / AVG_LAP_SEC))
+        flag = str(row.get("Flag", ""))
+        cat = str(row.get("Category", ""))
+
+        if "YELLOW" in flag or "YELLOW" in msg_upper:
+            etype = "flag"
+        elif "SAFETY" in msg_upper or cat == "SafetyCar":
+            etype = "incident"
+        elif "INCIDENT" in cat.upper() or "INVESTIGATION" in msg_upper or "PENALTY" in msg_upper:
+            etype = "incident"
+        elif "DRS" in msg_upper or "BLUE FLAG" in msg_upper or "DELETED" in msg_upper:
+            etype = "flag"
+        elif "RAIN" in msg_upper or "WEATHER" in msg_upper:
+            etype = "weather"
+        elif "PIT" in msg_upper:
+            etype = "pit"
+        else:
+            etype = "strategy"
+
+        idx += 1
+        events.append({
+            "id": f"rc{idx}",
+            "LapNumber": lap,
+            "Time": round(time_sec, 3),
+            "type": etype,
+            "description": msg,
+        })
+    with open(path, "w") as f:
+        json.dump(events, f, indent=2)
+    return len(events)
+
+
+def _export_track_status_json(ts_df, path):
+    """Convert session.track_status → track_status_data.json"""
+    records = []
+    for _, row in ts_df.iterrows():
+        time_sec = _to_seconds(row.get("Time", 0))
+        records.append({
+            "Time": round(time_sec, 3),
+            "Status": int(row.get("Status", 1)),
+            "Message": str(row.get("Message", "AllClear")),
+            "Lap": max(1, round(time_sec / AVG_LAP_SEC)),
+        })
+    with open(path, "w") as f:
+        json.dump(records, f, indent=2)
+    return len(records)
+
+
+def _export_telemetry_json(session, path):
+    """Fastest-lap telemetry → monza.json (track shape with speed)."""
+    fastest = session.laps.pick_fastest()
+    telem = fastest.get_telemetry()
+    points = []
+    for _, row in telem.iterrows():
+        x = row.get("X")
+        y = row.get("Y")
+        spd = row.get("Speed", 0)
+        if pd.isna(x) or pd.isna(y):
+            continue
+        points.append({
+            "x": round(float(x), 2),
+            "y": round(float(y), 2),
+            "speed": round(float(spd), 2),
+        })
+
+    # Subsample to ~600-700 points for smooth rendering without bloat
+    total = len(points)
+    if total > 700:
+        step = math.ceil(total / 650)
+        points = [points[i] for i in range(0, total, step)]
+
+    with open(path, "w") as f:
+        json.dump(points, f, indent=2)
+    return len(points)
 
 
 def main():
+    os.makedirs(WEB_LIB, exist_ok=True)
     train_frames, test_frames = [], []
 
     for race in RACES:
@@ -111,27 +224,28 @@ def main():
         else:
             test_frames.append(df)
 
-            # ── UI data for the test race (Italy / Monza) ────────────
-            session.results.to_csv("results.csv", index=False)
-            print(f"  results.csv          ({len(session.results)} rows)")
+            # ── Frontend JSON files (saved to web/lib/) ──────────────
+            n = _export_weather_json(
+                session.weather_data,
+                os.path.join(WEB_LIB, "weather_data.json"))
+            print(f"  weather_data.json      ({n} samples)")
 
-            _save_timedelta_csv(session.weather_data, "weather.csv")
-            print(f"  weather.csv          ({len(session.weather_data)} rows)")
+            n = _export_race_events_json(
+                session.race_control_messages,
+                os.path.join(WEB_LIB, "race_events_data.json"))
+            print(f"  race_events_data.json  ({n} events)")
 
-            _save_timedelta_csv(session.race_control_messages, "race_control.csv")
-            print(f"  race_control.csv     ({len(session.race_control_messages)} rows)")
+            n = _export_track_status_json(
+                session.track_status,
+                os.path.join(WEB_LIB, "track_status_data.json"))
+            print(f"  track_status_data.json ({n} entries)")
 
-            _save_timedelta_csv(session.track_status, "track_status.csv")
-            print(f"  track_status.csv     ({len(session.track_status)} rows)")
+            n = _export_telemetry_json(
+                session,
+                os.path.join(WEB_LIB, "monza.json"))
+            print(f"  monza.json             ({n} points)")
 
-            fastest = session.laps.pick_fastest()
-            telem = fastest.get_telemetry()
-            keep = [c for c in ["X", "Y", "Z", "Speed", "nGear", "Distance",
-                                "Throttle", "Brake"] if c in telem.columns]
-            telem[keep].to_csv("telemetry_ui.csv", index=False)
-            print(f"  telemetry_ui.csv     ({len(telem)} rows)")
-
-    # ── Combine and persist ──────────────────────────────────────────────
+    # ── Combine and persist (ML training data stays as CSV) ───────────
     train_df = pd.concat(train_frames, ignore_index=True)
     train_df.to_csv("laps_train.csv", index=False)
     print(f"\nlaps_train.csv  → {len(train_df):,} laps from "

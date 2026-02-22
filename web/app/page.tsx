@@ -10,6 +10,7 @@ import CarTimings from "@/components/CarTimings";
 import StrategyPanel from "@/components/StrategyPanel";
 import RaceHistory from "@/components/RaceHistory";
 import { ChaosProvider, useChaos } from "@/lib/ChaosContext";
+import { trackStatusForLap } from "@/lib/mock-data";
 
 function Dashboard() {
   const chaos = useChaos();
@@ -85,7 +86,7 @@ function Dashboard() {
         <div className="row-span-1"><StrategyPanel /></div>
         <div className="row-span-1 flex flex-col gap-px bg-apex-border overflow-y-auto">
           <PitWindow />
-          <WeatherPanel />
+          <WeatherPanel currentLap={currentLap} />
           <TireDegradation />
         </div>
         <div className="row-span-1"><CarTimings currentLap={currentLap} onLeaderChange={handleLeaderChange} /></div>
@@ -96,14 +97,18 @@ function Dashboard() {
       <footer className="h-7 flex items-center justify-between px-4 border-t border-apex-border bg-apex-card shrink-0">
         <div className="flex items-center gap-3 flex-1 overflow-hidden">
           <div className="flex items-center gap-1.5 shrink-0">
-            <div className="h-1.5 w-1.5 bg-apex-green animate-pulse-glow rounded-full" />
-            <span className="text-[9px] text-gray-500 font-mono font-bold">RUN</span>
+            <div className={`h-1.5 w-1.5 ${trackStatusForLap(currentLap).Status >= 2 ? 'bg-yellow-500' : 'bg-apex-green'} animate-pulse-glow rounded-full`} />
+            <span className={`text-[9px] font-mono font-bold ${trackStatusForLap(currentLap).Status >= 2 ? 'text-yellow-400' : 'text-gray-500'}`}>
+              {trackStatusForLap(currentLap).Status >= 2 ? 'YELLOW' : 'RUN'}
+            </span>
           </div>
           <div className="w-px h-3 bg-gray-800" />
           <span className="text-[9px] text-gray-500 font-mono truncate">
             {chaos.mathResults
               ? `⚠ ${chaos.event.toUpperCase().replace("_", " ")} DETECTED — WIN PROB: ${chaos.mathResults.win_probability}% — ${chaos.mathResults.recommendation}`
-              : "SYSTEMS NOMINAL — ALL CHANNELS ACTIVE"}
+              : trackStatusForLap(currentLap).Status >= 2
+                ? "⚠ YELLOW FLAG — CAUTION ON TRACK — NO OVERTAKING"
+                : "SYSTEMS NOMINAL — ALL CHANNELS ACTIVE"}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">

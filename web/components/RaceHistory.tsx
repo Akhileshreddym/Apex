@@ -1,7 +1,7 @@
 "use client";
 
 import { useChaos } from "@/lib/ChaosContext";
-import { mockRaceEvents } from "@/lib/mock-data";
+import { raceEvents } from "@/lib/mock-data";
 import { formatSessionTime } from "@/lib/format";
 import type { RaceEvent } from "@/lib/types";
 
@@ -40,7 +40,7 @@ export default function RaceHistory() {
     description: `${e.event.toUpperCase().replace("_", " ")} — ${e.recommendation}`,
   }));
 
-  const allEvents = [...chaosEvents, ...mockRaceEvents];
+  const allEvents = [...chaosEvents, ...raceEvents];
 
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">

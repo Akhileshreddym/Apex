@@ -3,6 +3,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import timingData from "@/lib/timing_data.json";
 import monzaData from "@/lib/monza.json";
+import { trackStatusForLap } from "@/lib/mock-data";
 
 /**
  * Normalise + ROTATE the Monza telemetry so the track is LANDSCAPE.
@@ -45,8 +46,7 @@ function normalizeTrack(points: { x: number; y: number }[]) {
 }
 
 const RAW_POINTS = monzaData as { x: number; y: number }[];
-const SUBSAMPLED = RAW_POINTS.filter((_, i) => i % 5 === 0);
-const TRACK_POINTS = normalizeTrack(SUBSAMPLED);
+const TRACK_POINTS = normalizeTrack(RAW_POINTS);
 
 interface CarState {
   trackIndex: number;
@@ -109,12 +109,15 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
 
     ctx.clearRect(0, 0, w, h);
 
+    const trackStatus = trackStatusForLap(currentLapRef.current);
+    const isYellow = trackStatus.Status >= 2;
+
     ctx.save();
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // Track border (dark)
-    ctx.strokeStyle = "#1e293b";
+    // Track border — yellow tint during yellow flag
+    ctx.strokeStyle = isYellow ? "#854d0e" : "#1e293b";
     ctx.lineWidth = 28;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -126,8 +129,8 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
     ctx.closePath();
     ctx.stroke();
 
-    // Track surface (middle tone)
-    ctx.strokeStyle = "#334155";
+    // Track surface
+    ctx.strokeStyle = isYellow ? "#422006" : "#334155";
     ctx.lineWidth = 26;
     ctx.beginPath();
     ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
@@ -138,7 +141,7 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
     ctx.stroke();
 
     // Center line
-    ctx.strokeStyle = "#475569";
+    ctx.strokeStyle = isYellow ? "#a16207" : "#475569";
     ctx.lineWidth = 1;
     ctx.setLineDash([8, 12]);
     ctx.beginPath();
@@ -179,26 +182,26 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
 
       const prevIndex = car.trackIndex;
 
-      // Moving logic
+      // Moving logic — slow down during yellow flag
+      const effectiveSpeed = isYellow ? car.speed * 0.6 : car.speed;
       if (currentLapRef.current < 53) {
-        // Normal racing
-        car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+        car.trackIndex = (car.trackIndex + effectiveSpeed) % TRACK_POINTS.length;
       } else {
         // We are on lap 53. Cars still racing should drive until they hit the line.
         // The line is essentially index 0 (or crossing from high trackIndex to low).
-        if (car.speed > 0) { // If they haven't finished yet
-          car.trackIndex = (car.trackIndex + car.speed) % TRACK_POINTS.length;
+        if (car.speed > 0) {
+          car.trackIndex = (car.trackIndex + effectiveSpeed) % TRACK_POINTS.length;
 
           // Did they just cross the finish line?
-          if (prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 50) {
-            car.trackIndex = 0; // Snap exactly to the start/finish line
-            car.speed = 0; // Stop moving permanently
+          if (prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 80) {
+            car.trackIndex = 0;
+            car.speed = 0;
           }
         }
       }
 
       // Leader lap counter update
-      if (car.Position === 1 && prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 50) {
+      if (car.Position === 1 && prevIndex > car.trackIndex && prevIndex > TRACK_POINTS.length - 80) {
         if (currentLapRef.current < 53) {
           currentLapRef.current += 1;
           setCurrentLap(currentLapRef.current);
@@ -243,14 +246,22 @@ export default function TrackCanvas({ onLapChange }: TrackCanvasProps = {}) {
     return () => cancelAnimationFrame(animRef.current);
   }, [initCars, render]);
 
+  const trackStatus = trackStatusForLap(currentLap);
+  const isYellowFlag = trackStatus.Status >= 2;
+
   return (
     <div className="apex-card h-full relative overflow-hidden">
       <div className="absolute top-2 left-3 z-10 flex items-center gap-2">
-        <div className="h-2 w-2 rounded-full bg-apex-cyan animate-pulse-glow" />
+        <div className={`h-2 w-2 rounded-full ${isYellowFlag ? 'bg-yellow-500' : 'bg-apex-cyan'} animate-pulse-glow`} />
         <span className="apex-label">LIVE TRACK — ITALIAN GP</span>
+        {isYellowFlag && (
+          <span className="text-[9px] font-bold text-yellow-400 bg-yellow-500/15 border border-yellow-500/30 px-1.5 py-0.5 animate-pulse">
+            YELLOW FLAG
+          </span>
+        )}
       </div>
       <div className="absolute top-2 right-3 z-10">
-        <span className="apex-label text-apex-cyan">LAP {currentLap} / 53</span>
+        <span className={`apex-label ${isYellowFlag ? 'text-yellow-400' : 'text-apex-cyan'}`}>LAP {currentLap} / 53</span>
       </div>
       <canvas
         ref={canvasRef}

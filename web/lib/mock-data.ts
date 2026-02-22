@@ -7,6 +7,9 @@ import type {
   TireCompound,
 } from "./types";
 import rawTimingData from "./timing_data.json";
+import rawWeatherData from "./weather_data.json";
+import rawRaceEvents from "./race_events_data.json";
+import rawTrackStatus from "./track_status_data.json";
 
 // ─────────────────────────────────
 // TIRE COLORS (keyed by FastF1 compound strings)
@@ -29,34 +32,45 @@ export const TIRE_COLORS: Record<string, string> = {
 export const mockTimingData: TimingData[] = rawTimingData as TimingData[];
 
 // ─────────────────────────────────
-// WEATHER (matches session.weather_data columns)
+// WEATHER — real time-series from FastF1 session.weather_data
+// 156 samples spanning the full race session (~60 s apart)
 // ─────────────────────────────────
 
-export const mockWeather: WeatherSample = {
-  Time: 3754.0,
-  AirTemp: 24.0,
-  Humidity: 68.0,
-  Pressure: 1013.2,
-  Rainfall: false,
-  TrackTemp: 42.0,
-  WindDirection: 315,
-  WindSpeed: 3.4,
-};
+export const weatherTimeSeries: WeatherSample[] = rawWeatherData as WeatherSample[];
 
-// Weather forecast — not in FastF1, computed by our backend
-export interface WeatherForecast {
-  LapNumber: number;
-  Rainfall: boolean;
-  AirTemp: number;
-  TrackTemp: number;
+/**
+ * Look up the weather sample closest to a given lap number.
+ * Monza average lap ~86 s, so session time ≈ lap × 86.
+ */
+export function weatherForLap(lap: number): WeatherSample {
+  const approxTime = lap * 86;
+  let best = weatherTimeSeries[0];
+  let bestDist = Math.abs(best.Time - approxTime);
+  for (const s of weatherTimeSeries) {
+    const d = Math.abs(s.Time - approxTime);
+    if (d < bestDist) { best = s; bestDist = d; }
+  }
+  return best;
 }
 
-export const mockWeatherForecast: WeatherForecast[] = [
-  { LapNumber: 36, Rainfall: false, AirTemp: 23.5, TrackTemp: 40.0 },
-  { LapNumber: 40, Rainfall: true, AirTemp: 22.0, TrackTemp: 36.0 },
-  { LapNumber: 44, Rainfall: true, AirTemp: 21.0, TrackTemp: 32.0 },
-  { LapNumber: 48, Rainfall: true, AirTemp: 20.5, TrackTemp: 30.0 },
-];
+/**
+ * Return the next `count` weather samples *after* the current lap.
+ * Used for the forecast strip.
+ */
+export function weatherForecastForLap(lap: number, count = 4): (WeatherSample & { ForecastLap: number })[] {
+  const approxTime = lap * 86;
+  const startIdx = weatherTimeSeries.findIndex(s => s.Time > approxTime);
+  if (startIdx === -1) return [];
+  const step = 3;
+  const result: (WeatherSample & { ForecastLap: number })[] = [];
+  for (let i = 0; i < count; i++) {
+    const idx = startIdx + i * step;
+    if (idx >= weatherTimeSeries.length) break;
+    const s = weatherTimeSeries[idx];
+    result.push({ ...s, ForecastLap: Math.round(s.Time / 86) });
+  }
+  return result;
+}
 
 // ─────────────────────────────────
 // PIT WINDOW (computed by backend from FastF1 lap data + Monte Carlo)
@@ -109,22 +123,11 @@ export const mockStrategies: StrategyRec[] = [
 ];
 
 // ─────────────────────────────────
-// RACE EVENTS (derived from RaceControlMessages + backend logic)
-// Times as seconds from session start
+// RACE EVENTS — real FIA race control messages from FastF1
+// Sorted newest-first for the live feed display
 // ─────────────────────────────────
 
-export const mockRaceEvents: RaceEvent[] = [
-  { id: "e1", LapNumber: 31, Time: 3754, type: "strategy", description: "VER — TyreLife 12, deg at 48%. Monitoring for box window." },
-  { id: "e2", LapNumber: 30, Time: 3612, type: "overtake", description: "NOR overtakes LEC — DRS Zone 1 — P2" },
-  { id: "e3", LapNumber: 28, Time: 3405, type: "pit", description: "HAM — Box — HARD fitted — Stint 2" },
-  { id: "e4", LapNumber: 27, Time: 3258, type: "weather", description: "TrackTemp dropping. Humidity 68%. WindDirection 315°" },
-  { id: "e5", LapNumber: 25, Time: 3033, type: "pit", description: "LEC — Box — HARD fitted — Stint 2" },
-  { id: "e6", LapNumber: 23, Time: 2772, type: "incident", description: "PER — Mechanical DNF — Engine failure T4" },
-  { id: "e7", LapNumber: 22, Time: 2641, type: "flag", description: "VSC DEPLOYED — Debris on track T4" },
-  { id: "e8", LapNumber: 20, Time: 2422, type: "pit", description: "VER — Box — MEDIUM fitted — Stint 2" },
-  { id: "e9", LapNumber: 18, Time: 2215, type: "overtake", description: "ALO overtakes STR — T6 outside line — P8" },
-  { id: "e10", LapNumber: 15, Time: 1811, type: "strategy", description: "Pit window opening. Leaders on aging SOFT." },
-];
+export const raceEvents: RaceEvent[] = (rawRaceEvents as RaceEvent[]).slice().reverse();
 
 // ─────────────────────────────────
 // TIRE DEGRADATION (computed by backend from FastF1 TyreLife + LapTime)
@@ -151,3 +154,32 @@ export const mockTireDeg: TireDegPoint[] = [
   { LapNumber: 30, TyreLife: 11, DegPct: 54 },
   { LapNumber: 31, TyreLife: 12, DegPct: 48 },
 ];
+
+// ─────────────────────────────────
+// TRACK STATUS — real FIA track status from FastF1
+// Status codes: 1=AllClear, 2=Yellow, 4=SC, 5=Red, 6=VSC
+// ─────────────────────────────────
+
+export interface TrackStatusEvent {
+  Time: number;
+  Status: number;
+  Message: string;
+  Lap: number;
+}
+
+export const trackStatusEvents: TrackStatusEvent[] = rawTrackStatus as TrackStatusEvent[];
+
+/**
+ * Return the active track status for a given lap.
+ * Walks through events chronologically and picks the last one
+ * whose time is at or before the current lap.
+ */
+export function trackStatusForLap(lap: number): TrackStatusEvent {
+  const approxTime = lap * 86;
+  let current = trackStatusEvents[0];
+  for (const evt of trackStatusEvents) {
+    if (evt.Time <= approxTime) current = evt;
+    else break;
+  }
+  return current;
+}

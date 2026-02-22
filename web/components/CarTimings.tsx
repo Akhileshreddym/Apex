@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useChaos } from "@/lib/ChaosContext";
-import { mockTimingData, TIRE_COLORS } from "@/lib/mock-data";
+import { mockTimingData, TIRE_COLORS, trackStatusForLap } from "@/lib/mock-data";
 import { formatLapTime } from "@/lib/format";
 
 // Extend TimingData with our internal tracking metrics
@@ -65,34 +65,33 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
           const prevLastLapTime = d.LastLapTime ?? 90.0;
           const prevBestLapTime = d.BestLapTime ?? 90.0;
 
-          // 1. Base Pace variation (± 0.4s) - Add a bit more variance to encourage overtakes
-          const paceVariation = (Math.random() * 1.5) - 0.7;
+          const trackStatus = trackStatusForLap(lapRef.current);
+          const isYellow = trackStatus.Status >= 2;
 
-          // Generate a completely fresh lap time anchored around ~84.5s (1m24.5s), 
-          // adding tire deg dynamically to the baseline, not compounding it endlessly onto itself.
           const baseAnchor = 84.5;
-          let newLapTime = baseAnchor + paceVariation;
+          let newLapTime: number;
 
-          // Natural Tire Deg Penalty - Older tires get slower (0.04s per lap of age)
-          newLapTime += (d.TyreLife * 0.04);
+          if (isYellow) {
+            // Yellow flag: all cars run at a uniform slow pace, no variance → no overtaking
+            newLapTime = baseAnchor + 12;
+          } else {
+            const paceVariation = (Math.random() * 1.5) - 0.7;
+            newLapTime = baseAnchor + paceVariation;
+            newLapTime += (d.TyreLife * 0.04);
+          }
 
-          // 2. Apply Chaos Effects dynamically
           const event = chaos.event;
 
           if (event === "major_crash" || event === "minor_crash") {
-            // Safety car bunches the pack - slower laps, but gaps compress down
             newLapTime += 15;
           } else if (event === "rain") {
-            // Rain severely impacts slick tires - they lose huge amounts of time
             if (["SOFT", "MEDIUM", "HARD"].includes(d.Compound)) {
-              newLapTime += 8; // HUGE penalty per tick
+              newLapTime += 8;
             }
           } else if (event === "traffic") {
-            // DRS train bunches the midfield (cars 4-10 run a bit slower if they catch up)
             if (d.Position >= 4 && d.Position <= 10) newLapTime += 0.5;
           } else if (event === "penalty_5s" && d.Position === 1) {
-            // Assume leader got penalty
-            newLapTime += 2; // Simulate losing time
+            newLapTime += 2;
           }
 
           // 3. Pitting Logic
