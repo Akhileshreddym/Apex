@@ -3,11 +3,14 @@
 @tailwind utilities;
 
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 
 :root {
   --apex-bg: #030712;
   --apex-card: #0a0f1a;
-  --apex-border: #1e293b;
+  --apex-card-elevated: #0e1525;
+  --apex-border: #151d2e;
+  --apex-border-subtle: #111827;
   --apex-cyan: #22d3ee;
   --apex-orange: #f97316;
   --apex-red: #ef4444;
@@ -31,7 +34,22 @@ body {
 
 @layer components {
   .apex-card {
-    @apply bg-apex-card border border-apex-border p-3;
+    background: linear-gradient(180deg, var(--apex-card-elevated) 0%, var(--apex-card) 100%);
+    border: 1px solid var(--apex-border);
+    padding: 0.75rem;
+    position: relative;
+  }
+
+  /* Subtle top highlight on cards */
+  .apex-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+    pointer-events: none;
   }
 
   .apex-label {
@@ -55,36 +73,43 @@ body {
   }
 
   .apex-glow-cyan {
-    box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.12), inset 0 1px 0 rgba(34, 211, 238, 0.05);
   }
 
   .apex-glow-orange {
-    box-shadow: 0 0 20px rgba(249, 115, 22, 0.15);
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.12), inset 0 1px 0 rgba(249, 115, 22, 0.05);
   }
 
   .apex-glow-red {
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.12), inset 0 1px 0 rgba(239, 68, 68, 0.05);
   }
 }
 
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--apex-bg);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--apex-border);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
 }
 
-/* Slide-in animation for the AI radio banner */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Animations */
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -92,5 +117,21 @@ body {
 }
 
 .animate-slide-in {
-  animation: slideIn 0.3s ease-out;
+  animation: slideIn 0.35s ease-out;
+}
+
+@keyframes subtlePulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-subtle-pulse {
+  animation: subtlePulse 2s ease-in-out infinite;
 }
