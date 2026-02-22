@@ -252,7 +252,7 @@ def main():
           f"{train_df['GP'].nunique()} GPs")
 
     test_df = pd.concat(test_frames, ignore_index=True)
-    test_df.to_csv("datalaps_test.csv", index=False)
+    test_df.to_csv("data/laps_test.csv", index=False)
     print(f"laps_test.csv   → {len(test_df):,} laps from "
           f"{test_df['GP'].nunique()} GP(s)")
 

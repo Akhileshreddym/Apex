@@ -24,11 +24,3 @@ Access Points:
     http://localhost:3000/ipad => shows the control panel on ipad
 2. Backend
     http://localhost:8000/ws/chaos => webhook which get triggered upon receiving even from ipad, upon trigger sends data to judge UI
-
-Workflow:
-1. Source data using `get_f1_data.py`
-    Gets data of 9 races (as Train)
-    Gets data of 1 race => 2023, Italy (as Test)
-    Also has a list of cols to fetch for `lap_cols` & `timedelta_cols`
-    `laps_train.csv` and `laps_test.csv` => gets data for laps in its entirety (dataframe gets appended)
-    
