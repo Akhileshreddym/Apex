@@ -247,12 +247,12 @@ def main():
 
     # ── Combine and persist (ML training data stays as CSV) ───────────
     train_df = pd.concat(train_frames, ignore_index=True)
-    train_df.to_csv("laps_train.csv", index=False)
+    train_df.to_csv("data/laps_train.csv", index=False)
     print(f"\nlaps_train.csv  → {len(train_df):,} laps from "
           f"{train_df['GP'].nunique()} GPs")
 
     test_df = pd.concat(test_frames, ignore_index=True)
-    test_df.to_csv("laps_test.csv", index=False)
+    test_df.to_csv("datalaps_test.csv", index=False)
     print(f"laps_test.csv   → {len(test_df):,} laps from "
           f"{test_df['GP'].nunique()} GP(s)")
 
