@@ -3,7 +3,7 @@
 import { useChaos } from "@/lib/ChaosContext";
 import { mockStrategies, TIRE_COLORS } from "@/lib/mock-data";
 import type { StrategyRec } from "@/lib/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const PRIORITY_STYLES: Record<
   StrategyRec["priority"],
@@ -35,9 +35,10 @@ const PRIORITY_STYLES: Record<
   },
 };
 
-export default function StrategyPanel({ currentLap = 1 }: { currentLap?: number }) {
+export default function StrategyPanel({ currentLap = 1, playbackSpeed = 1 }: { currentLap?: number, playbackSpeed?: number }) {
   const chaos = useChaos();
-  const [strategies, setStrategies] = useState<StrategyRec[]>(mockStrategies);
+  const [strategies, setStrategies] = useState<StrategyRec[]>([]);
+  const lastProcessedMathRef = useRef<any>(null);
 
   useEffect(() => {
     if (!chaos.mathResults || !chaos.event) return;
@@ -51,6 +52,15 @@ export default function StrategyPanel({ currentLap = 1 }: { currentLap?: number 
       priority = "high";
     }
 
+    // For chaos events (critical/high), only process once per unique mathResults object.
+    // This prevents the same "MAJOR CRASH" from re-spawning on every lap tick.
+    if (priority !== "medium" && math === lastProcessedMathRef.current) {
+      return;
+    }
+    if (priority !== "medium") {
+      lastProcessedMathRef.current = math;
+    }
+
     let compound: any = "INTERMEDIATE";
     const recommendation = math.recommendation || "";
 
@@ -58,6 +68,18 @@ export default function StrategyPanel({ currentLap = 1 }: { currentLap?: number 
     else if (recommendation.includes("slicks")) compound = "SOFT";
     else if (["tyre_deg", "traffic", "penalty_5s"].includes(chaos.event)) {
       compound = "MEDIUM";
+    }
+
+    // THROTTLE UI UPDATES
+    // Critical/High events and Lap 1 always bypass the throttle
+    if (priority === "medium" && currentLap !== 1) {
+      if (playbackSpeed === 1) {
+        if (currentLap % 3 !== 0 && currentLap !== 53) return; // 1x: Update every 3 laps
+      } else if (playbackSpeed === 5000) {
+        if (currentLap !== 53) return; // 5000x: Only update at end of race
+      } else {
+        if (currentLap % 5 !== 0 && currentLap !== 53) return; // 2x-50x: Update every 5 laps
+      }
     }
 
     const newStrategy: StrategyRec = {
@@ -70,8 +92,14 @@ export default function StrategyPanel({ currentLap = 1 }: { currentLap?: number 
       detail: recommendation || "Analyzing impact...",
     };
 
-    setStrategies((prev) => [newStrategy, ...prev]);
-  }, [chaos.mathResults, chaos.event, currentLap]);
+    setStrategies((prev) => {
+      // Prevent duplicates of the same event/lap from backend polling
+      if (prev.length > 0 && prev[0].LapNumber === currentLap && prev[0].action === newStrategy.action) {
+        return prev;
+      }
+      return [newStrategy, ...prev];
+    });
+  }, [chaos.mathResults, chaos.event, currentLap, playbackSpeed]);
 
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useChaos } from "@/lib/ChaosContext";
 import { mockTimingData, TIRE_COLORS, trackStatusForLap, weatherForLap } from "@/lib/mock-data";
 import { formatLapTime } from "@/lib/format";
+import type { RaceEvent } from "@/lib/types";
 
 // Extend TimingData with our internal tracking metrics
 export type TimingDataRow = typeof mockTimingData[number];
@@ -15,14 +16,17 @@ interface SimulationDriver extends TimingDataRow {
 interface CarTimingsProps {
   currentLap: number;
   onLeaderChange?: (leader: SimulationDriver, allDrivers: SimulationDriver[]) => void;
+  onRaceEvent?: (event: RaceEvent) => void;
 }
 
-export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsProps) {
+export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: CarTimingsProps) {
   const chaos = useChaos();
 
-  // Keep callback ref stable
+  // Keep callback refs stable
   const onLeaderChangeRef = useRef(onLeaderChange);
   useEffect(() => { onLeaderChangeRef.current = onLeaderChange; }, [onLeaderChange]);
+  const onRaceEventRef = useRef(onRaceEvent);
+  useEffect(() => { onRaceEventRef.current = onRaceEvent; }, [onRaceEvent]);
 
   // Store pending notification data to fire AFTER render (avoids setState-during-render)
   const pendingNotifyRef = useRef<{ leader: SimulationDriver; all: SimulationDriver[] } | null>(null);
@@ -32,6 +36,10 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
   useEffect(() => {
     lapRef.current = currentLap;
   }, [currentLap]);
+
+  // Pending race events ref to defer emission after render
+  const pendingEventsRef = useRef<RaceEvent[]>([]);
+  const processedChaosRef = useRef<Set<string>>(new Set());
 
   // Empty array of drivers to bootstrap state
   const [timingData, setTimingData] = useState<SimulationDriver[]>([]);
@@ -256,20 +264,12 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
 
           // Special logic for APX: Follow the LLM's Strategy Recommendation AND Perfect Natural Strategy
           if (d.Abbreviation === "APX") {
-            const rec = chaos.mathResults?.recommendation?.toLowerCase() || "";
-            const isChaosBoxing = chaos.event && (rec.includes("box") || rec.includes("pit") || rec.includes("change tyre"));
+            const isRaining = chaos.event === "rain";
 
-            if (isChaosBoxing) {
-              // Priority 1: Reactive LLM Strategy to Chaos
-              if (d.TyreLife > 1 && (!isLateRace || chaos.event === "tyre_failure")) {
-                isPitting = true;
-                if (rec.includes("intermediate") || rec.includes("inters")) newCompound = "INTERMEDIATE";
-                else if (rec.includes("wet")) newCompound = "WET";
-                else if (rec.includes("soft")) newCompound = "SOFT";
-                else if (rec.includes("medium")) newCompound = "MEDIUM";
-                else if (rec.includes("hard")) newCompound = "HARD";
-                else newCompound = "MEDIUM"; // Fallback
-              }
+            // Priority 1: Deterministic Rain Check (slick tires melt in rain, must box)
+            if (isRaining && ["SOFT", "MEDIUM", "HARD"].includes(d.Compound)) {
+              isPitting = true;
+              newCompound = "INTERMEDIATE";
             } else {
               // Priority 2: Global Lookahead Engine + Opponent Awareness
               let bestTime = simulateRaceToFinish(-1); // Baseline: Do not pit
@@ -343,9 +343,8 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
                 }
               }
             }
-          }
-          // Logic for the other 19 ghost cars (Bots)
-          else {
+            // Logic for the other 19 ghost cars (Bots)
+          } else {
             if (event === "rain" && ["SOFT", "MEDIUM", "HARD"].includes(d.Compound) && !isLateRace) {
               // Everyone boxes for inters during heavy rain
               isPitting = true;
@@ -425,6 +424,67 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
 
         const result = [...fullyRanked, ...outDrivers];
 
+        // ---- GENERATE ORGANIC RACE EVENTS ----
+        const emitEvent = (type: RaceEvent["type"], description: string) => {
+          pendingEventsRef.current.push({
+            id: Math.random().toString(36).slice(2),
+            LapNumber: lapRef.current,
+            Time: Date.now() / 1000,
+            type,
+            description,
+          });
+        };
+
+        // Race Started (Lap 1 only)
+        if (lapRef.current === 1 && prevData.length > 0) {
+          emitEvent("flag", "LIGHTS OUT AND AWAY WE GO! Race started.");
+        }
+
+        // Race Finished (Lap 53)
+        if (lapRef.current >= 53 && fullyRanked.length > 0) {
+          emitEvent("flag", `CHEQUERED FLAG! ${fullyRanked[0].Abbreviation} wins the Italian Grand Prix!`);
+        }
+
+        // Detect Overtakes
+        for (const driver of fullyRanked) {
+          const prev = prevData.find((p: SimulationDriver) => p.Abbreviation === driver.Abbreviation);
+          if (prev && prev.Position > driver.Position) {
+            const overtaken = fullyRanked.find(d => d.Position === driver.Position + 1);
+            if (overtaken) {
+              emitEvent("overtake", `${driver.Abbreviation} overtakes ${overtaken.Abbreviation} for P${driver.Position}`);
+            }
+          }
+        }
+
+        // Detect Pit Stops
+        for (const driver of result) {
+          const prev = prevData.find((p: SimulationDriver) => p.Abbreviation === driver.Abbreviation);
+          if (prev && driver.PitCount > prev.PitCount) {
+            emitEvent("pit", `${driver.Abbreviation} pits for ${driver.Compound} tires (Stop ${driver.PitCount})`);
+          }
+        }
+
+        // Detect Crashes / DNFs
+        for (const driver of result) {
+          const prev = prevData.find((p: SimulationDriver) => p.Abbreviation === driver.Abbreviation);
+          if (prev && prev.Status !== "OUT" && driver.Status === "OUT") {
+            emitEvent("incident", `${driver.Abbreviation} is OUT of the race! DNF.`);
+          }
+        }
+
+        // Detect Chaos Events
+        if (chaos.event && chaos.eventHistory.length > 0) {
+          const latestChaos = chaos.eventHistory[0];
+          if (latestChaos && !processedChaosRef.current.has(latestChaos.id)) {
+            processedChaosRef.current.add(latestChaos.id);
+            const label = latestChaos.event.toUpperCase().replace("_", " ");
+            const eventType = ["rain", "heatwave"].includes(latestChaos.event) ? "weather" as const
+              : ["minor_crash", "major_crash", "tyre_failure"].includes(latestChaos.event) ? "incident" as const
+                : "flag" as const;
+            emitEvent(eventType, `${label} — ${latestChaos.recommendation}`);
+          }
+        }
+
         // Queue notification for after render
         if (fullyRanked.length > 0) {
           pendingNotifyRef.current = { leader: fullyRanked[0], all: result };
@@ -444,6 +504,12 @@ export default function CarTimings({ currentLap, onLeaderChange }: CarTimingsPro
       const { leader, all } = pendingNotifyRef.current;
       pendingNotifyRef.current = null;
       onLeaderChangeRef.current?.(leader, all);
+    }
+    // Emit pending race events
+    if (pendingEventsRef.current.length > 0) {
+      const events = [...pendingEventsRef.current];
+      pendingEventsRef.current = [];
+      events.forEach(e => onRaceEventRef.current?.(e));
     }
   }, [timingData]);
 

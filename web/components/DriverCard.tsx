@@ -25,17 +25,19 @@ const COUNTRY_FLAGS: Record<string, string> = {
   "Nico Hulkenberg": "🇩🇪",
   "Guanyu Zhou": "🇨🇳",
   "Pierre Gasly": "🇫🇷",
-  "Apex AI": "🤖",
+  "Brad Pitt": "🇺🇸",
 };
 
 interface DriverCardProps {
   allDrivers?: any[];
   currentLap?: number;
+  customName?: string;
+  customPhoto?: string;
 }
 
 const FOCUS_DRIVER = "APX"; // Focus on the player's car
 
-export default function DriverCard({ allDrivers, currentLap = 1 }: DriverCardProps) {
+export default function DriverCard({ allDrivers, currentLap = 1, customName, customPhoto }: DriverCardProps) {
   // Always find the focused driver in live data, fallback to finding them in mock data
   const d =
     allDrivers?.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
@@ -62,9 +64,11 @@ export default function DriverCard({ allDrivers, currentLap = 1 }: DriverCardPro
     return () => clearInterval(interval);
   }, [raceOver]);
 
-  const firstName = d.FullName?.split(" ")[0] ?? "";
-  const lastName = d.FullName?.split(" ").slice(1).join(" ") ?? "";
-  const flag = COUNTRY_FLAGS[d.FullName] ?? "🏁";
+  const displayName = d.Abbreviation === "APX" ? "Brad Pitt" : d.FullName;
+  const firstName = displayName?.split(" ")[0] ?? "";
+  const lastName = displayName?.split(" ").slice(1).join(" ") ?? "";
+  const flag = d.Abbreviation === "APX" ? "🇺🇸" : (COUNTRY_FLAGS[d.FullName] ?? "🏁");
+  const driverTeam = d.Abbreviation === "APX" ? "APEX RACING" : d.TeamName;
 
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden relative">
@@ -90,8 +94,8 @@ export default function DriverCard({ allDrivers, currentLap = 1 }: DriverCardPro
           }}
         >
           <img
-            src={d.Abbreviation === "APX" ? "/driver_apx.jpg" : "/driver_ver.png"}
-            alt={d.FullName}
+            src={d.Abbreviation === "APX" ? (customPhoto || "/driver_apx.jpg") : "/driver_ver.png"}
+            alt={displayName}
             className="w-full h-full object-cover object-top"
           />
           {/* Bottom gradient */}

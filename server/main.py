@@ -47,7 +47,7 @@ async def generate_radio_call(math_results: dict, event: str) -> str:
         Here is the output from our strategy Monte Carlo simulator:
         {json.dumps(math_results, indent=2)}
 
-        Based ONLY on this info, generate exactly a 1-to-2 sentence radio call to the driver.
+        Based ONLY on this info, generate exactly a 1-to-2 sentence radio call to Brad.
         Keep it professional, concise, and focused on tire strategy or pace. 
         Include the specific recommendation and win probability.
         """
@@ -59,7 +59,7 @@ async def generate_radio_call(math_results: dict, event: str) -> str:
         Here is the output from our strategy Monte Carlo simulator:
         {json.dumps(math_results, indent=2)}
 
-        Based ONLY on this info, generate exactly a 3-sentence radio call to the driver.
+        Based ONLY on this info, generate exactly a 3-sentence radio call to Brad.
         Keep it panicked but professional. Include the specific recommendation and win probability.
         """
     
