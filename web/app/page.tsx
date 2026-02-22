@@ -55,8 +55,8 @@ function Dashboard({ driverName, driverPhoto }: { driverName: string; driverPhot
               key={speed}
               onClick={() => setPlaybackSpeed(speed)}
               className={`px-2.5 py-1 text-[10px] font-mono rounded transition-all duration-200 ${playbackSpeed === speed
-                  ? 'bg-apex-red text-white font-bold shadow-lg shadow-red-500/20'
-                  : 'bg-white/[0.03] text-white/30 hover:bg-white/[0.06] hover:text-white/50'
+                ? 'bg-apex-red text-white font-bold shadow-lg shadow-red-500/20'
+                : 'bg-white/[0.03] text-white/30 hover:bg-white/[0.06] hover:text-white/50'
                 }`}
             >
               {speed}x
@@ -66,8 +66,8 @@ function Dashboard({ driverName, driverPhoto }: { driverName: string; driverPhot
           <button
             onClick={() => setPlaybackSpeed(5000)}
             className={`px-3 py-1 text-[10px] font-mono rounded transition-all duration-200 ${playbackSpeed === 5000
-                ? 'bg-apex-cyan text-black font-bold shadow-lg shadow-cyan-500/20'
-                : 'bg-cyan-500/10 text-cyan-400/60 hover:bg-cyan-500/20 hover:text-cyan-400'
+              ? 'bg-apex-cyan text-black font-bold shadow-lg shadow-cyan-500/20'
+              : 'bg-cyan-500/10 text-cyan-400/60 hover:bg-cyan-500/20 hover:text-cyan-400'
               }`}
           >
             SKIP TO RESULTS
@@ -96,7 +96,7 @@ function Dashboard({ driverName, driverPhoto }: { driverName: string; driverPhot
       </header>
 
       {/* AI Radio Call Banner */}
-      {chaos.radioCall && (
+      {chaos.mathResults && (
         <div className="px-5 py-2.5 flex items-start gap-3 shrink-0 animate-slide-in" style={{
           background: 'linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(10,15,26,0.4) 50%, rgba(10,15,26,0) 100%)',
           borderBottom: '1px solid rgba(239,68,68,0.08)',
@@ -111,10 +111,18 @@ function Dashboard({ driverName, driverPhoto }: { driverName: string; driverPhot
                 {chaos.event.toUpperCase().replace("_", " ")}
               </span>
               <span className="text-[9px] text-white/20 font-mono">AI ENGINEER</span>
+              <span className="text-[9px] font-bold text-white/40 font-mono ml-auto">
+                WIN PROB: <span className={`${chaos.mathResults.win_probability >= 50 ? 'text-green-400' : 'text-orange-400'}`}>{chaos.mathResults.win_probability}%</span>
+              </span>
             </div>
-            <p className="text-[11px] text-white/50 leading-relaxed italic">
-              &quot;{chaos.radioCall}&quot;
+            <p className="text-[11px] text-white/40 leading-relaxed font-mono">
+              {chaos.mathResults.recommendation}
             </p>
+            {chaos.radioCall && (
+              <p className="text-[10px] text-white/25 leading-relaxed italic mt-0.5">
+                🎙 &quot;{chaos.radioCall}&quot;
+              </p>
+            )}
           </div>
         </div>
       )}

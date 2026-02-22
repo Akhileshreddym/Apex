@@ -118,6 +118,14 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
 
     ctx.clearRect(0, 0, w, h);
 
+    // Gradient background
+    const bgGrad = ctx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.4, w * 0.7);
+    bgGrad.addColorStop(0, '#0e1525');
+    bgGrad.addColorStop(0.6, '#090d17');
+    bgGrad.addColorStop(1, '#050810');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
+
     const trackStatus = trackStatusForLap(currentLapRef.current);
     const isYellow = trackStatus.Status >= 2;
 
@@ -125,39 +133,62 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // Track border — yellow tint during yellow flag
-    ctx.strokeStyle = isYellow ? "#854d0e" : "#1e293b";
-    ctx.lineWidth = 28;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    // --- Track glow (outer atmospheric glow) ---
+    ctx.strokeStyle = isYellow ? 'rgba(234,179,8,0.2)' : 'rgba(34,211,238,0.06)';
+    ctx.lineWidth = 50;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
-    for (let i = 1; i < TRACK_POINTS.length; i++) {
-      ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
-    }
+    for (let i = 1; i < TRACK_POINTS.length; i++) ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
     ctx.closePath();
     ctx.stroke();
 
-    // Track surface
-    ctx.strokeStyle = isYellow ? "#422006" : "#334155";
+    // --- Extra yellow glow layer during caution ---
+    if (isYellow) {
+      ctx.strokeStyle = 'rgba(250,204,21,0.08)';
+      ctx.lineWidth = 80;
+      ctx.beginPath();
+      ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
+      for (let i = 1; i < TRACK_POINTS.length; i++) ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // --- Track border (runoff area) ---
+    ctx.strokeStyle = isYellow ? '#92400e' : '#1a2236';
+    ctx.lineWidth = 30;
+    ctx.beginPath();
+    ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
+    for (let i = 1; i < TRACK_POINTS.length; i++) ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // --- Track surface (asphalt) ---
+    ctx.strokeStyle = isYellow ? '#78350f' : '#2a3548';
     ctx.lineWidth = 26;
     ctx.beginPath();
     ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
-    for (let i = 1; i < TRACK_POINTS.length; i++) {
-      ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
-    }
+    for (let i = 1; i < TRACK_POINTS.length; i++) ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
     ctx.closePath();
     ctx.stroke();
 
-    // Center line
-    ctx.strokeStyle = isYellow ? "#a16207" : "#475569";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([8, 12]);
+    // --- Inner track edge highlight ---
+    ctx.strokeStyle = isYellow ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 22;
     ctx.beginPath();
     ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
-    for (let i = 1; i < TRACK_POINTS.length; i++) {
-      ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
-    }
+    for (let i = 1; i < TRACK_POINTS.length; i++) ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // --- Center line (dashed) ---
+    ctx.strokeStyle = isYellow ? 'rgba(234,179,8,0.4)' : 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = isYellow ? 1.5 : 1;
+    ctx.setLineDash([6, 14]);
+    ctx.beginPath();
+    ctx.moveTo(TRACK_POINTS[0].x, TRACK_POINTS[0].y);
+    for (let i = 1; i < TRACK_POINTS.length; i++) ctx.lineTo(TRACK_POINTS[i].x, TRACK_POINTS[i].y);
     ctx.closePath();
     ctx.stroke();
     ctx.setLineDash([]);
@@ -222,24 +253,52 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
       const idx = Math.floor(car.trackIndex);
       const pt = TRACK_POINTS[idx];
 
+      // Car shadow
+      ctx.beginPath();
+      ctx.arc(pt.x + 1, pt.y + 1, 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fill();
+
+      // Car glow
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 12, 0, Math.PI * 2);
+      const glowAlpha = car.Position === 1 ? 0.25 : 0.1;
+      ctx.fillStyle = car.TeamColor.replace(')', `,${glowAlpha})`).replace('rgb', 'rgba').replace('#', '');
+      // Manual hex to glow
+      ctx.fillStyle = `${car.TeamColor}${Math.round(glowAlpha * 255).toString(16).padStart(2, '0')}`;
+      ctx.fill();
+
+      // Car body circle
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, 7, 0, Math.PI * 2);
       ctx.fillStyle = car.TeamColor;
       ctx.fill();
-      ctx.strokeStyle = "#000";
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.font = "bold 5px monospace";
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      // Inner highlight
+      ctx.beginPath();
+      ctx.arc(pt.x - 1, pt.y - 1, 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fill();
+
+      // Driver number text
+      ctx.font = 'bold 5px monospace';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.fillText(car.DriverNumber, pt.x, pt.y);
 
-      ctx.font = "bold 8px monospace";
-      ctx.fillStyle = "#e2e8f0";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
+      // Abbreviation label
+      ctx.font = 'bold 8px sans-serif';
+      ctx.fillStyle = 'rgba(226,232,240,0.85)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      // Text shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillText(car.Abbreviation, pt.x + 11, pt.y - 1);
+      ctx.fillStyle = 'rgba(226,232,240,0.85)';
       ctx.fillText(car.Abbreviation, pt.x + 10, pt.y - 2);
     }
 
@@ -268,8 +327,9 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
           </span>
         )}
       </div>
-      <div className="absolute top-2 right-3 z-10">
-        <span className={`apex-label ${isYellowFlag ? 'text-yellow-400' : 'text-apex-cyan'}`}>LAP {currentLap} / 53</span>
+      <div className="absolute top-2 right-3 z-10 flex items-center gap-2">
+        <span className={`text-[10px] font-mono font-bold ${isYellowFlag ? 'text-yellow-400' : 'text-cyan-400/70'}`}>LAP {currentLap} / 53</span>
+        {!isYellowFlag && <span className="text-[9px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">WS:LIVE</span>}
       </div>
       <canvas
         ref={canvasRef}
