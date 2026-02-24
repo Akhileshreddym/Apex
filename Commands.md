@@ -9,7 +9,7 @@ python test_ws.py
 
 Backend Commands:
 1. To install required python packages
-pip install -r requirements.text 
+pip install -r requirements.txt 
 
 2. to start backend server
 python main.py
