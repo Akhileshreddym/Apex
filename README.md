@@ -2,7 +2,7 @@
 
 > **"Outsmart the Grid"**
 
-**Hacklytics 2026** — A real-time, interactive F1 pit wall simulator with a dual-screen architecture. Built in 24 hours at Georgia Tech's Hacklytics 2026 hackathon.
+**Hacklytics 2026** — A real-time, interactive F1 pit wall simulator with a dual-screen architecture. Built in 36 hours at Georgia Tech's Hacklytics 2026 hackathon.
 
 ---
 
