@@ -16,7 +16,7 @@ Apex was inspired by the new F1 movie and by the intensity of race-day decision-
 
 Apex is a real-time F1 pit wall simulator where you act as the strategist. You get a live Monza track map with 20 cars moving in real time, plus a full timing board showing gaps, intervals, sector times, tyre compounds, and pit counts updating constantly as the race unfolds.
 
-When it's time to make a call, Apex runs **10,000 Monte Carlo simulations** to recommend pit windows, undercut or overcut options, and win probability based on the current race state and tyre degradation. A WebSocket chaos engine can trigger rain, crashes, safety cars, and penalties — which instantly force strategy changes and trigger context-aware race engineer radio updates. Judges and spectators can follow everything through a synced iPad steward view while you manage the Apex AI car, **number 20 APX**.
+The **live race UI** (timing board, pit windows, undercut/overcut hints) is driven by frontend simulation logic seeded from real 2023 Monza data. When a chaos event fires from the iPad, the **Python backend** runs **10,000 Monte Carlo simulations** via the trained two-stage model and returns win probability plus a strategy recommendation. A WebSocket chaos engine can trigger rain, crashes, safety cars, and penalties — which instantly force strategy changes and trigger context-aware race engineer radio updates (via Gemini). Judges and spectators can follow everything through a synced iPad steward view while you manage the player car **APX**.
 
 ---
 
@@ -34,14 +34,16 @@ When it's time to make a call, Apex runs **10,000 Monte Carlo simulations** to r
                                                                                            └─────────────────────┘
 ```
 
+Race visualization data (timing, weather, track shape, race control) is loaded from static JSON in `web/lib/`, exported once by `get_f1_data.py`. The backend handles chaos events and ML inference only.
+
 ### The Golden Loop
 
 1. User taps **"Rain"** on the iPad
-2. Frontend sends `{"event": "rain"}` via WebSocket to FastAPI
-3. **Stage 1**: Ridge regression predicts a circuit-level base lap time from track geometry (length + corners)
-4. **Stage 2**: XGBoost predicts the lap-by-lap residual from tire age, compound, position, fuel load, stint, and other race-state features
+2. Frontend sends a chaos payload via WebSocket to FastAPI (e.g. `{"event": "rain", "compound": "MEDIUM", "current_tire_age": 15, "laps_left": 30}`)
+3. **Stage 1**: Ridge regression estimates circuit base pace from track geometry (length + corners)
+4. **Stage 2**: XGBoost predicts the per-lap residual from tyre age, compound, position, fuel load, stint, driver, weather, and circuit geometry — anchored to the **GP median pace** (87.0s at Monza)
 5. NumPy Monte Carlo runs **10,000 simulations** with event penalties + Gaussian noise in <0.2s
-6. Gemini API formats the math output into a 3-sentence radio call
+6. Gemini (via OpenRouter) formats the math output into a radio call
 7. Result is broadcast to all connected Pit Wall clients via WebSocket
 
 ---
@@ -52,12 +54,12 @@ When it's time to make a call, Apex runs **10,000 Monte Carlo simulations** to r
 |---|---|---|
 | Frontend | Next.js App Router, Tailwind CSS | Pit Wall dashboard + iPad chaos console |
 | Animation | GSAP | Smooth car position transitions on track map |
-| Canvas | HTML5 `<canvas>`, `requestAnimationFrame` | 20-car telemetry animation (zero React state) |
-| Backend | Python FastAPI | WebSocket server + REST API |
+| Canvas | HTML5 `<canvas>`, `requestAnimationFrame` | 20-car track animation (car positions in refs, minimal React re-renders) |
+| Backend | Python FastAPI | WebSocket server for chaos events + ML inference |
 | ML — Stage 1 | Ridge Regression + Polynomial Features (degree 2) | Circuit-level base lap time prediction (generalizes across tracks) |
-| ML — Stage 2 | XGBoost (scikit-learn pipeline) | Per-lap residual prediction (tyre degradation, traffic, stint effects) |
+| ML — Stage 2 | XGBoost + sklearn `ColumnTransformer` | Per-lap residual prediction from race-state features |
 | Simulation | NumPy vectorized Monte Carlo | 10K race simulations in <0.2s |
-| LLM | Gemini API via OpenRouter | Text formatting only (zero math) |
+| LLM | Gemini 2.5 Flash via OpenRouter | Text formatting only (zero math) |
 | Data | FastF1 | Historical F1 timing, weather, telemetry |
 
 ---
@@ -75,13 +77,15 @@ Apex/
 │   ├── app/
 │   │   ├── page.tsx           # Pit Wall dashboard (laptop screen)
 │   │   ├── ipad/page.tsx      # Steward chaos console (iPad screen)
+│   │   ├── api/generate-portrait/  # Driver portrait API route
 │   │   └── layout.tsx
 │   ├── components/
+│   │   ├── LandingPage.tsx    # Onboarding / driver portrait flow
 │   │   ├── TrackCanvas.tsx    # HTML5 canvas car animation
 │   │   ├── DriverCard.tsx     # Driver info panel
-│   │   ├── CarTimings.tsx     # Live timing board
-│   │   ├── StrategyPanel.tsx  # Strategy recommendations
-│   │   ├── PitWindow.tsx      # Pit stop window calculator
+│   │   ├── CarTimings.tsx     # Live timing board + lap simulation
+│   │   ├── StrategyPanel.tsx  # Strategy recommendations (from WebSocket)
+│   │   ├── PitWindow.tsx      # Pit stop window calculator (frontend heuristics)
 │   │   ├── WeatherPanel.tsx   # Weather conditions
 │   │   ├── TireDegradation.tsx# Tire wear charts
 │   │   └── RaceHistory.tsx    # Event history feed
@@ -89,11 +93,16 @@ Apex/
 │       ├── ChaosContext.tsx   # WebSocket state management
 │       ├── useWebSocket.ts    # WebSocket hook with auto-reconnect
 │       ├── types.ts           # TypeScript interfaces (FastF1-aligned)
-│       ├── mock-data.ts       # Fallback mock data
-│       └── format.ts          # Time formatting utilities
+│       ├── mock-data.ts       # Loads JSON data + lookup helpers
+│       ├── format.ts          # Time formatting utilities
+│       ├── timing_data.json   # Monza lap timing (exported)
+│       ├── weather_data.json  # Race weather time-series
+│       ├── monza.json         # Track GPS coordinates
+│       ├── race_events_data.json
+│       └── track_status_data.json
 │
 └── server/                    # Python FastAPI backend
-    ├── main.py                # FastAPI server (WebSocket + REST endpoints)
+    ├── main.py                # FastAPI server (WebSocket only)
     ├── simulator.py           # Monte Carlo simulation engine
     ├── train_engine.py        # Two-stage model training pipeline (Ridge + XGBoost)
     ├── get_f1_data.py         # FastF1 data extraction script
@@ -102,12 +111,14 @@ Apex/
     │   └── feature_engineering.ipynb  # Feature engineering notebook
     ├── models/
     │   ├── engine_v2.joblib           # Trained Stage 2 XGBoost model (generated)
-    │   ├── pace_model_v2.joblib       # Trained pace prediction model (generated)
-    │   ├── preprocessor_v2.joblib     # Sklearn pipeline (generated)
-    │   └── feature_columns_v2.json    # Feature metadata (generated)
+    │   ├── pace_model_v2.joblib       # Trained Stage 1 Ridge model (generated)
+    │   ├── preprocessor_v2.joblib     # Sklearn preprocessor (generated)
+    │   ├── feature_columns_v2.json  # Feature metadata (generated)
+    │   └── circuit_medians.json       # Per-GP median lap anchors (generated)
     └── data/
         ├── laps_train.csv      # Lap training data (generated)
-        └── laps_test.csv       # Lap test data (generated)
+        ├── laps_test.csv       # Lap test data — Italy/Monza held out (generated)
+        └── eval_report.json    # Model metrics (generated by train_engine.py)
 ```
 
 ---
@@ -115,40 +126,48 @@ Apex/
 ## Data Pipeline
 
 ```
-                        ┌─────────────────────────────────────────────────┐
-                        │              train_engine.py                    │
-                        │                                                 │
-  get_f1_data.py        │  Input A: laps_train.csv  (from get_f1_data.py) │
-       │                │  Input B: hardcoded circuit table               │
-   FastF1 API           │           (10 GPs: TrackLength + Corners)       │
-       │                │                                                 │
-       ▼                │  Stage 1: Ridge + PolynomialFeatures(deg=2)     │
-  CSV files ────────────│           → predicts base lap time per circuit  │
-  (server/data/)        │                                                 │
-                        │  Stage 2: XGBoost                               │
-                        │           → predicts residual (actual - base)   │
-                        │             from per-lap race-state features    │
-                        │                                                 │
-                        │  Outputs:                                       │
-                        │    engine_v2.joblib          (Stage 2 XGBoost)  │
-                        │    pace_model_v2.joblib      (Pace model)       │
-                        │    preprocessor_v2.joblib    (sklearn pipeline) │
-                        │    feature_columns_v2.json   (feature metadata) │
-                        └───────────────┬─────────────────────────────────┘
+                        ┌───────────────────────────────────────────────-──┐
+                        │              train_engine.py                     │
+                        │                                                  │
+  get_f1_data.py        │  Input A: laps_train.csv  (10 GPs)               │
+       │                │  Input B: laps_test.csv   (Italy — held out)     │
+   FastF1 API           │  Input C: circuit table   (TrackLength + Corners)│
+       │                │                                                  │
+       ▼                │  Stage 1: Ridge + PolynomialFeatures(deg=2)      │
+  server/data/*.csv ────│           → predicts base lap time per circuit   │
+  web/lib/*.json        │                                                  │
+  (timing, weather,     │  Stage 2: XGBoost                                │
+   track, events)       │           → predicts residual                    │
+                        │             (lap time − GP median pace)          │
+                        │                                                  │
+                        │  Outputs:                                        │
+                        │    engine_v2.joblib          (Stage 2 XGBoost)   │
+                        │    pace_model_v2.joblib      (Stage 1 Ridge)     │
+                        │    preprocessor_v2.joblib    (sklearn pipeline)  │
+                        │    feature_columns_v2.json   (feature metadata)  │
+                        │    circuit_medians.json      (inference anchors) │
+                        │    eval_report.json          (model metrics)     │
+                        └───────────────┬────────────────────────────────-─┘
                                         │
                                         ▼
                                main.py (runtime)
                                loads artifacts at startup
-                               serves /ws/chaos + REST endpoints
+                               serves /ws/chaos (WebSocket only)
 ```
 
-### CSV Files Extracted
+### Data Files
 
-| File | Location | Rows | Description | Used By |
+| File | Location | Rows / size | Description | Used By |
 |---|---|---|---|---|
-| `laps_train.csv` | `server/data/` | ~700 | Training set for all laps, all 20 drivers | Model training |
-| `laps_test.csv` | `server/data/` | ~258 | Test set for model validation | Model evaluation |
-| Integration data | embedded in scripts | N/A | Driver metadata, weather, telemetry, race control | Frontend REST endpoints, simulator |
+| `laps_train.csv` | `server/data/` | ~9,366 laps | 10 GPs for model training | `train_engine.py` |
+| `laps_test.csv` | `server/data/` | ~878 laps | Italy (Monza) held-out test set | `train_engine.py` |
+| `timing_data.json` | `web/lib/` | 20 drivers | Starting grid + Monza lap anchors | Frontend timing board |
+| `weather_data.json` | `web/lib/` | 156 samples | Race weather time-series | `WeatherPanel` |
+| `monza.json` | `web/lib/` | 637 points | Track GPS coordinates | `TrackCanvas` |
+| `race_events_data.json` | `web/lib/` | 43 events | FIA race control messages | `RaceHistory` |
+| `track_status_data.json` | `web/lib/` | — | Flag transitions | Yellow flag UI |
+
+All `web/lib/*.json` files are exported by `get_f1_data.py` from FastF1. The frontend reads them directly — there are no REST data endpoints on the backend.
 
 ### Data Excluded (and why)
 
@@ -169,28 +188,32 @@ Apex/
 
 ### Stage 1 — Circuit Base Lap Time (Ridge Regression)
 
-A Ridge regression model is fit on degree-2 polynomial features of `TrackLength` and `Corners` using a small circuit-level dataset of **10 Grands Prix** (one row per circuit). This stage predicts the base lap time for a given circuit, giving the system a stable estimate of overall pace and allowing it to extrapolate to unseen tracks (e.g., Monza/Italy).
+A Ridge regression model is fit on degree-2 polynomial features of `TrackLength` and `Corners` using **10 Grands Prix** (one row per circuit). This stage predicts base lap time for a given circuit and can extrapolate to unseen tracks (e.g. Monza/Italy), though with error (~4.7s off on Italy).
 
-Ridge is used here because, with only 10 data points, a regularized linear model is far safer for extrapolation than a tree-based model — which would likely overfit and fail to transfer across circuits. Polynomial features are **only** used in this stage.
+Ridge is used because, with only 10 data points, a regularized linear model is safer for extrapolation than a tree-based model. Polynomial features are **only** used in this stage.
 
 ### Stage 2 — Per-Lap Residuals (XGBoost)
 
-XGBoost is trained on per-lap features to predict the **residual**: actual lap time minus the Stage 1 base prediction. This setup makes the pipeline more circuit-agnostic because Stage 1 captures track-specific baseline pace and Stage 2 learns only the lap-by-lap deviations caused by tyre degradation, stint progression, traffic, and race conditions.
+XGBoost is trained to predict the **residual**: actual lap time minus the **GP median pace** for that circuit. Stage 2 learns lap-by-lap deviations from the typical pace caused by tyre degradation, stint progression, position/traffic, fuel load, and weather.
 
-XGBoost is used here because it handles nonlinear feature interactions well and is proven on structured/tabular race data.
+`EstBasePace` (the Ridge output) is **excluded** from Stage 2 features — including it caused the model to memorise circuit identity and fail on held-out GPs. At inference on Monza, the anchor comes from `circuit_medians.json` (87.0s); Ridge is the fallback for unknown circuits.
 
 ### Features (Stage 2)
 
-| Feature | Importance | Rationale |
+| Feature | Type | Rationale |
 |---|---|---|
-| Stint | Highest | Which tyre stint — captures strategy phase |
-| Position | High | Dirty air effect (~0.3–0.5s loss following a car) |
-| FreshTyre | High | New vs. used tyre set — grip difference |
-| Compound | Medium | SOFT/MEDIUM/HARD performance profiles |
-| LapNumber | Medium | Proxy for fuel load (lighter car = faster) |
-| FuelLoad | Medium | Normalized remaining fuel (derived from LapNumber) |
-| TyreLife | Medium | Laps on current tyre set — degradation |
-| AvgSpeed | Low | Mean speed trap reading — car performance proxy |
+| TyreLife | Numeric | Laps on current tyre set — degradation |
+| Stint | Numeric | Which tyre stint — strategy phase |
+| Position | Numeric | Dirty air / track position effects |
+| FreshTyre | Numeric | New vs. used tyre set |
+| Compound | Categorical (OHE) | SOFT / MEDIUM / HARD profiles |
+| LapNumber | Numeric | Race progression |
+| FuelLoad | Numeric | Normalized remaining fuel (derived from LapNumber) |
+| Driver | Categorical (OHE) | Per-driver pace offset (2023 grid) |
+| TrackLength, Corners | Numeric | Circuit geometry for extrapolation |
+| AirTemp, TrackTemp, Humidity, Rainfall | Numeric | Weather conditions |
+
+Sector times and speed-trap columns are excluded from training (mostly null or redundant).
 
 ### Preprocessing Pipeline
 
@@ -199,9 +222,10 @@ XGBoost is used here because it handles nonlinear feature interactions well and 
 3. Estimate fuel load from lap number
 4. Fill missing stint and position values
 5. Median imputation + one-hot encoding for categorical features
-6. Save Stage 1 (Ridge + polynomial feature bundle), Stage 2 (XGBoost), and the preprocessor for consistent inference
+6. Save Stage 1 bundle, Stage 2 XGBoost, preprocessor, feature list, and circuit medians
 
 ### Model Performance
+
 Metrics from `data/eval_report.json` (run `python train_engine.py` to regenerate):
 
 | Metric | Value | Notes |
@@ -212,18 +236,17 @@ Metrics from `data/eval_report.json` (run `python train_engine.py` to regenerate
 | **Held-out Italy MAE** | **0.64s** | Monza test GP, using known circuit median anchor |
 | **Stage 1 Italy extrapolation** | 82.3s est vs 87.0s actual | Ridge base pace; Stage 2 uses circuit median at inference |
 
-Stage 2 predicts residuals from the **GP median pace** (not the Ridge estimate). `EstBasePace` is excluded from Stage 2 features to prevent the model from memorising circuit identity and failing on held-out tracks. At inference on Monza, the anchor comes from `circuit_medians.json` (the replay dataset).
-
 ### Honest Assessment
 
 | Aspect | Status | Notes |
 |---|---|---|
-| Two-stage modeling | Correct | Stage 1 Ridge generalizes across circuits; Stage 2 XGBoost captures lap dynamics |
-| Monte Carlo 10K sims | Correct | Right tool for probabilistic "what if" analysis |
+| Two-stage modeling | Correct | Stage 1 Ridge extrapolates circuit pace; Stage 2 XGBoost captures lap dynamics |
+| Monte Carlo 10K sims | Correct | Runs on backend chaos events; frontend timing uses separate heuristics |
 | LLM as text formatter only | Correct | Gemini does zero math — just formats the numbers into radio calls |
-| Circuit-level Stage 1 dataset | Limitation | Only 10 GPs for the Ridge stage — more data would improve base extrapolation |
-| Chaos penalties are hardcoded | Limitation | +15s rain, +40s SC are manual estimates, not learned from data |
+| Circuit-level Stage 1 dataset | Limitation | Only 10 GPs for Ridge — more data would improve base extrapolation |
+| Chaos penalties are hardcoded | Limitation | Rain, SC, crash deltas are manual estimates in `simulator.py`, not learned |
 | Win probability is circular | Limitation | Compares model output (with noise) against model output (without noise) |
+| No REST API | Limitation | Frontend reads static JSON; backend is WebSocket-only |
 | Model versioning | v2 | Latest trained artifacts stored in `server/models/` with v2 suffix |
 
 ### What Would Improve It
@@ -234,26 +257,16 @@ Stage 2 predicts residuals from the **GP median pace** (not the Ridge estimate).
 
 ---
 
-## API Endpoints
+## API
 
-### WebSocket
+### WebSocket (backend)
 
 | Endpoint | Direction | Payload |
 |---|---|---|
-| `ws://localhost:8000/ws/chaos` | Client → Server | `{"event": "rain", "compound": "MEDIUM", "current_tire_age": 15, "laps_left": 30}` |
-| `ws://localhost:8000/ws/chaos` | Server → Client | `{"event": "rain", "math_results": {...}, "radio_call": "Box box box!..."}` |
+| `ws://localhost:8000/ws/chaos` | Client → Server | `{"event": "rain", "compound": "MEDIUM", "current_tire_age": 15, "laps_left": 30, "position": 10, "stint": 2, "air_temp": 28.5, "track_temp": 43.0, "humidity": 45, "rainfall": 0}` |
+| `ws://localhost:8000/ws/chaos` | Server → Client | `{"event": "rain", "math_results": {"predicted_total_time": ..., "win_probability": ..., "recommendation": "...", "math_baseline_lap": ...}, "radio_call": "Box box box!..."}` |
 
-### REST (Visualization Data)
-
-| Endpoint | Returns |
-|---|---|
-| `GET /api/results` | Driver/team metadata (20 drivers) |
-| `GET /api/laps` | All lap timing data (~958 laps) |
-| `GET /api/weather` | Weather time-series (~156 samples) |
-| `GET /api/race-control` | Race control messages (~43 events) |
-| `GET /api/track-status` | Flag transitions |
-| `GET /api/telemetry` | Circuit shape coordinates (~637 points) |
-| `GET /api/health` | Model status, features, compound map |
+The backend does **not** expose REST endpoints. All race visualization data is served from `web/lib/*.json` at build/runtime on the Next.js side.
 
 ---
 
@@ -278,11 +291,18 @@ python get_f1_data.py
 
 # Step 2: Train the two-stage model
 python train_engine.py
-# → Generates server/models/ artifacts (v2 versions)
+# → Generates server/models/ artifacts + data/eval_report.json
 
 # Step 3: Start the server
 python main.py
 # → Server runs at http://localhost:8000
+```
+
+On macOS, if XGBoost fails to load:
+
+```bash
+export DYLD_LIBRARY_PATH=/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH
+python train_engine.py
 ```
 
 ### Frontend
@@ -322,12 +342,12 @@ GEMINI_API_KEY=your_key_here
 
 ## What's Next for Apex
 
-- Dynamic weather and full safety car / virtual safety car logic
-- Improved tyre degradation models using more advanced inputs
+- REST API layer for live data serving (currently static JSON only)
+- Learned chaos penalties from historical wet/SC races
+- Full safety car / virtual safety car logic tied to backend MC
 - Full race replays and custom scenario builder
 - Player vs. player strategy battles
 - Historical tracks and driver/car performance profiles
-- Smarter strategy recommendations trained on multi-season race data
 
 Long-term, we want Apex to become a game-like simulation and analytics tool for motorsport fans, students, and anyone who wants to experience what it feels like to run strategy from the pit wall.
 
