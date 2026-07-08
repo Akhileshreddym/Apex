@@ -46,7 +46,8 @@
 | `models/pace_model_v2.joblib` | Stage 1 — polynomial transformer + Ridge regressor (TrackLength, Corners → median lap time) | `simulator.py`, `train_engine.py` | **Active** |
 | `models/engine_v2.joblib` | Stage 2 — trained XGBRegressor for lap time residual prediction | `simulator.py`, `train_engine.py` | **Active** |
 | `models/preprocessor_v2.joblib` | ColumnTransformer that encodes Compound and scales numeric features before XGBoost | `simulator.py`, `train_engine.py` | **Active** |
-| `models/feature_columns_v2.json` | JSON array of 10 feature names (EstBasePace, FreshTyre, FuelLoad, LapNumber, Position, Stint, TyreLife, Compound_*) | `simulator.py`, `train_engine.py` | **Active** |
+| `models/feature_columns_v2.json` | JSON array of Stage 2 feature names (numeric + OHE compound/driver) | `simulator.py`, `train_engine.py` | **Active** |
+| `models/circuit_medians.json` | Per-GP median lap times used as inference anchors (Italy = Monza replay) | `simulator.py`, `train_engine.py` | **Active** |
 
 ### Standalone Scripts (run manually from `server/`)
 

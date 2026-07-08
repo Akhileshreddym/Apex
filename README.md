@@ -202,9 +202,17 @@ XGBoost is used here because it handles nonlinear feature interactions well and 
 6. Save Stage 1 (Ridge + polynomial feature bundle), Stage 2 (XGBoost), and the preprocessor for consistent inference
 
 ### Model Performance
+Metrics from `data/eval_report.json` (run `python train_engine.py` to regenerate):
 
-- **5-Fold CV MAE: ~0.29s** (predicts residual within ~0.3 seconds)
-- **R²: 0.95** (explains 95% of lap time variance)
+| Metric | Value | Notes |
+|---|---|---|
+| **5-Fold CV lap MAE** | **~0.35s** | Lap-level KFold on 10 training GPs |
+| **5-Fold CV R²** | **0.996** | Explains 99.6% of lap-time variance in CV |
+| **Training MAE** | **0.30s** | Full fit on 10 GPs |
+| **Held-out Italy MAE** | **0.64s** | Monza test GP, using known circuit median anchor |
+| **Stage 1 Italy extrapolation** | 82.3s est vs 87.0s actual | Ridge base pace; Stage 2 uses circuit median at inference |
+
+Stage 2 predicts residuals from the **GP median pace** (not the Ridge estimate). `EstBasePace` is excluded from Stage 2 features to prevent the model from memorising circuit identity and failing on held-out tracks. At inference on Monza, the anchor comes from `circuit_medians.json` (the replay dataset).
 
 ### Honest Assessment
 

@@ -4,11 +4,13 @@ simulator.py
 ------------
 Vectorised Monte Carlo strategy engine (two-stage model).
 
-Stage 1: Ridge regression estimates Monza's base pace from circuit features.
-Stage 2: XGBoost predicts the residual (how much faster/slower than base)
+Stage 1: Ridge regression estimates circuit base pace from track geometry.
+Stage 2: XGBoost predicts the residual from the circuit median anchor,
          given the current race state (tire, position, fuel, etc.).
 
-Final lap time = Stage1_base + Stage2_residual
+Final lap time = circuit_anchor + Stage2_residual
+    Monza uses the known Italy median from circuit_medians.json (the replay
+    dataset). Ridge Stage 1 is the fallback for circuits without a stored median.
 
 All 10,000 simulations run in pure NumPy — zero for-loops in the math.
 """
@@ -26,16 +28,31 @@ pace_ridge = None
 xgb_model = None
 preprocessor = None
 feature_cols = None
+circuit_medians: dict[str, float] = {}
 
 # Monza constants
 MONZA_TRACK_KM = 5.793
 MONZA_CORNERS = 11
 MONZA_TOTAL_LAPS = 53
-MONZA_EST_PACE = None  # computed from pace model on load
+MONZA_GP_NAME = "Italy"
+MONZA_EST_PACE = None  # circuit anchor used at inference
+
+
+def _ridge_pace(track_km: float, corners: int) -> float:
+    X = poly_tf.transform([[track_km, corners]])
+    return float(pace_ridge.predict(X)[0])
+
+
+def _circuit_anchor(gp_name: str = MONZA_GP_NAME) -> float:
+    """Known GP median when available, otherwise Ridge extrapolation."""
+    if gp_name in circuit_medians:
+        return float(circuit_medians[gp_name])
+    return _ridge_pace(MONZA_TRACK_KM, MONZA_CORNERS)
 
 
 def load_resources():
-    global poly_tf, pace_ridge, xgb_model, preprocessor, feature_cols, MONZA_EST_PACE
+    global poly_tf, pace_ridge, xgb_model, preprocessor, feature_cols
+    global circuit_medians, MONZA_EST_PACE
     try:
         for path in ("models/pace_model_v2.joblib",
                      "models/engine_v2.joblib",
@@ -50,9 +67,15 @@ def load_resources():
         xgb_model = joblib.load("models/engine_v2.joblib")
         preprocessor = joblib.load("models/preprocessor_v2.joblib")
 
-        X_monza = poly_tf.transform([[MONZA_TRACK_KM, MONZA_CORNERS]])
-        MONZA_EST_PACE = float(pace_ridge.predict(X_monza)[0])
-        print(f"Monza estimated base pace: {MONZA_EST_PACE:.1f}s")
+        circuit_medians = {}
+        if os.path.exists("models/circuit_medians.json"):
+            with open("models/circuit_medians.json") as f:
+                circuit_medians = json.load(f)
+
+        ridge_est = _ridge_pace(MONZA_TRACK_KM, MONZA_CORNERS)
+        MONZA_EST_PACE = _circuit_anchor(MONZA_GP_NAME)
+        print(f"Monza Ridge estimate: {ridge_est:.1f}s")
+        print(f"Monza circuit anchor: {MONZA_EST_PACE:.1f}s")
 
         if os.path.exists("models/feature_columns_v2.json"):
             with open("models/feature_columns_v2.json") as f:
@@ -76,11 +99,14 @@ def _build_input_row(tire_age: int,
                      rainfall: int,
                      position: int = 10,
                      stint: int = 1,
-                     fresh_tyre: bool = False) -> pd.DataFrame:
+                     fresh_tyre: bool = False,
+                     driver: str = "APX") -> pd.DataFrame:
     """Build a single-row DataFrame matching the Stage 2 preprocessor."""
     total = MONZA_TOTAL_LAPS
     return pd.DataFrame([{
-        "EstBasePace": MONZA_EST_PACE,
+        "TrackLength": MONZA_TRACK_KM,
+        "Corners": MONZA_CORNERS,
+        "Driver": driver,
         "FreshTyre": int(fresh_tyre),
         "FuelLoad": 1.0 - (lap_number / total),
         "LapNumber": lap_number,
@@ -155,28 +181,25 @@ def run_monte_carlo(current_tire_age: int,
         totals += 5.0
 
     mean_total = float(np.mean(totals))
-    
+
     # Calculate pack finish time (accounting for global events)
     pack_baseline_lap = baseline_lap_time
     pack_deg_rate = 0.1
-    
+
     if event == "heatwave":
         pack_deg_rate = 0.2
-    
+
     pack_lap_idx = np.arange(laps_left)
     pack_base_times = pack_baseline_lap + pack_lap_idx * pack_deg_rate
-    
+
     # Apply global event penalties to the pack
     if event == "minor_crash":
-        # VSC slows pack down for ~2 laps
         pack_base_times[:min(2, laps_left)] += 30.0
     elif event == "major_crash":
-        # Safety Car slows pack down for ~4 laps
         pack_base_times[:min(4, laps_left)] += 40.0
-        
-    # Tally up the adjusted pack finish time
+
     pack_finish = np.sum(pack_base_times) + 2.0
-    
+
     calc_wp = float(np.sum(totals < pack_finish) / NUM_SIMS * 100)
 
     wp, rec = _strategy_call(event, compound_str, calc_wp)
