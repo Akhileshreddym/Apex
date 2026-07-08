@@ -25,13 +25,13 @@ When it's time to make a call, Apex runs **10,000 Monte Carlo simulations** to r
 ```
 ┌─────────────────────┐    WebSocket     ┌──────────────────────────────┐    WebSocket     ┌─────────────────────┐
 │   iPad (Steward)    │ ──────────────→  │     Python FastAPI Server    │ ──────────────→  │  Laptop (Pit Wall)  │
-│   /ipad route       │   chaos event    │                              │   results         │  / route            │
+│   /ipad route       │   chaos event    │                              │   results        │  / route            │
 │                     │                  │  Ridge → XGBoost → Monte     │                  │                     │
 │  Rain | Crash | SC  │                  │  Carlo → LLM                 │                  │  Telemetry Canvas   │
 │  buttons            │                  │                              │                  │  Timing Board       │
 └─────────────────────┘                  │  /ws/chaos endpoint          │                  │  Strategy Panel     │
                                          └──────────────────────────────┘                  │  Weather / Tires    │
-                                                                                            └─────────────────────┘
+                                                                                           └─────────────────────┘
 ```
 
 ### The Golden Loop
@@ -118,15 +118,15 @@ Apex/
                         ┌─────────────────────────────────────────────────┐
                         │              train_engine.py                    │
                         │                                                 │
-  get_f1_data.py        │  Input A: laps_train.csv  (from get_f1_data.py)│
+  get_f1_data.py        │  Input A: laps_train.csv  (from get_f1_data.py) │
        │                │  Input B: hardcoded circuit table               │
-   FastF1 API           │           (10 GPs: TrackLength + Corners)      │
+   FastF1 API           │           (10 GPs: TrackLength + Corners)       │
        │                │                                                 │
-       ▼                │  Stage 1: Ridge + PolynomialFeatures(deg=2)    │
+       ▼                │  Stage 1: Ridge + PolynomialFeatures(deg=2)     │
   CSV files ────────────│           → predicts base lap time per circuit  │
   (server/data/)        │                                                 │
-                        │  Stage 2: XGBoost                              │
-                        │           → predicts residual (actual - base)  │
+                        │  Stage 2: XGBoost                               │
+                        │           → predicts residual (actual - base)   │
                         │             from per-lap race-state features    │
                         │                                                 │
                         │  Outputs:                                       │
