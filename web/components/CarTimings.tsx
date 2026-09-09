@@ -49,6 +49,7 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
   // Track the last processed chaos event to ensure one-time triggers (like targeted crashes) happen exactly once per event
   const lastEventIdRef = useRef<string>("");
   const currentVictimRef = useRef<string>("");
+  const lastCrisisLapRef = useRef<number>(-1);
 
   // Initialize with initial standings and calculate base cumulative time
   useEffect(() => {
@@ -61,8 +62,10 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
           }
           return {
             ...d,
+            _baseAnchor: d.BestLapTime && d.BestLapTime > 0 ? d.BestLapTime : 84.5,
+            BestLapTime: null,
             CumulativeTime: baseOffset
-          } as SimulationDriver;
+          } as any;
         })
       );
     }
@@ -73,8 +76,17 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
     if (!chaos.connected || timingData.length === 0 || currentLap >= 53) return;
 
     // Don't override an active crisis event with a generic strategy update
+    // until at least 3 laps have passed to let the crisis play out
     if (["major_crash", "minor_crash", "tyre_failure", "rain", "heatwave"].includes(chaos.event)) {
-      return;
+      if (lastCrisisLapRef.current === -1) {
+        lastCrisisLapRef.current = currentLap;
+      }
+      
+      if (currentLap - lastCrisisLapRef.current < 3) {
+        return;
+      }
+    } else {
+      lastCrisisLapRef.current = -1;
     }
 
     const apxCar = timingData.find((d) => d.Abbreviation === "APX");
@@ -137,14 +149,14 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
 
           // Safety check for null
           const prevLastLapTime = d.LastLapTime ?? 90.0;
-          const prevBestLapTime = d.BestLapTime ?? 90.0;
+          const prevBestLapTime = d.BestLapTime ?? 999.0;
 
           const trackStatus = trackStatusForLap(lapRef.current);
           const isYellow = trackStatus.Status >= 2;
 
           // Anchor pace realistically based on the driver's known baseline capabilities, not a flat 84.5
-          // We use BestLapTime as their "Qualifying Pace" baseline. If missing, fallback to 84.5.
-          const baseAnchor = d.BestLapTime && d.BestLapTime > 0 ? d.BestLapTime : 84.5;
+          // We use _baseAnchor as their "Qualifying Pace" baseline.
+          const baseAnchor = (d as any)._baseAnchor ?? 84.5;
           let newLapTime: number;
 
           if (isYellow) {
@@ -227,8 +239,8 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
               }
 
               // Calculate base lap time (no random variance in forward-sim)
-              const baseAnchor = (d.BestLapTime ?? 0) > 0 ? d.BestLapTime! : 84.5;
-              let lapTime = baseAnchor + 1.2;
+              const simBaseAnchor = (d as any)._baseAnchor ?? 84.5;
+              let lapTime = simBaseAnchor + 1.2;
 
               // Apply degradation deltas
               let degMultiplier = 0.04;
@@ -515,6 +527,10 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
     }
   }, [timingData]);
 
+  const globalBestLap = timingData.reduce((min, driver) => {
+    return driver.BestLapTime && driver.BestLapTime > 0 && driver.BestLapTime < min ? driver.BestLapTime : min;
+  }, Infinity);
+
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between mb-2">
@@ -595,7 +611,7 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
                   {formatLapTime(d.LastLapTime)}
                 </span>
 
-                <span className="font-mono text-[11px] text-right text-purple-400/80">
+                <span className={`font-mono text-[11px] text-right ${d.BestLapTime && d.BestLapTime === globalBestLap && d.BestLapTime > 0 ? "text-[#c084fc]" : "text-[#aab8d4]"}`}>
                   {formatLapTime(d.BestLapTime)}
                 </span>
 

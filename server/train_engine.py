@@ -224,22 +224,22 @@ def make_preprocessor(X_raw: pd.DataFrame) -> tuple[ColumnTransformer, list[str]
 
 
 def run_cv(X, y_residual, anchor, y_absolute) -> dict:
-  """5-fold CV on Stage 2 residual prediction (lap-level, shuffled)."""
-  kf = KFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
-  res_maes, lap_maes, lap_r2s = [], [], []
+    """5-fold CV on Stage 2 residual prediction (lap-level, shuffled)."""
+    kf = KFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+    res_maes, lap_maes, lap_r2s = [], [], []
 
-  for train_idx, val_idx in kf.split(X):
-      model = XGBRegressor(**XGB_PARAMS)
-      model.fit(X[train_idx], y_residual[train_idx])
+    for train_idx, val_idx in kf.split(X):
+        model = XGBRegressor(**XGB_PARAMS)
+        model.fit(X[train_idx], y_residual[train_idx])
 
-      res_pred = model.predict(X[val_idx])
-      res_maes.append(mean_absolute_error(y_residual[val_idx], res_pred))
+        res_pred = model.predict(X[val_idx])
+        res_maes.append(mean_absolute_error(y_residual[val_idx], res_pred))
 
-      y_pred = anchor[val_idx] + res_pred
-      lap_maes.append(mean_absolute_error(y_absolute[val_idx], y_pred))
-      lap_r2s.append(r2_score(y_absolute[val_idx], y_pred))
+        y_pred = anchor[val_idx] + res_pred
+        lap_maes.append(mean_absolute_error(y_absolute[val_idx], y_pred))
+        lap_r2s.append(r2_score(y_absolute[val_idx], y_pred))
 
-  return {
+    return {
       "cv_folds": CV_FOLDS,
       "cv_residual_mae_s": round(float(np.mean(res_maes)), 3),
       "cv_residual_mae_std_s": round(float(np.std(res_maes)), 3),
@@ -346,7 +346,7 @@ def train():
     print(f"  MAE  : {train_metrics['mae_s']:.3f} s")
     print(f"  R²   : {train_metrics['r2']:.4f}")
 
-    print(f"\n  Per-GP breakdown:")
+    print("\n  Per-GP breakdown:")
     res_train_pred = model.predict(X_train)
     y_train_pred = train_df["GPMedian"].values + res_train_pred
     y_train_true = train_df[TARGET].values

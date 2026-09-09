@@ -45,6 +45,12 @@ export default function DriverCard({ allDrivers, currentLap = 1, customName, cus
     allDrivers?.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
     mockTimingData.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
     mockTimingData[0];
+  
+  const globalBestLap = allDrivers?.reduce((min, dr) => {
+    return dr.BestLapTime && dr.BestLapTime > 0 && dr.BestLapTime < min ? dr.BestLapTime : min;
+  }, Infinity);
+  
+  const isPurple = d.BestLapTime && globalBestLap && d.BestLapTime === globalBestLap && d.BestLapTime > 0;
   const tireColor = instrumentColor(TIRE_COLORS[d.Compound] ?? "#64748b");
 
   // Simulate speed, gear, and RPM that update every tick
@@ -122,7 +128,7 @@ export default function DriverCard({ allDrivers, currentLap = 1, customName, cus
 
       <div className="shrink-0" style={{ borderTop: "1px solid #333333", paddingTop: 7 }}>
         <div className="grid grid-cols-3 gap-1">
-          {[{ label: "LAST LAP", value: formatLapTime(d.LastLapTime), color: "#dce5e7" }, { label: "BEST LAP", value: formatLapTime(d.BestLapTime), color: "#b49bd7" }, { label: "TO LEADER", value: d.GapToLeader, color: "#87b9df" }].map((stat) => (
+          {[{ label: "LAST LAP", value: formatLapTime(d.LastLapTime), color: "#dce5e7" }, { label: "BEST LAP", value: formatLapTime(d.BestLapTime), color: isPurple ? "#c084fc" : "#aab8d4" }, { label: "TO LEADER", value: d.GapToLeader, color: "#87b9df" }].map((stat) => (
             <div key={stat.label}><div style={{ fontSize: 7, letterSpacing: ".08em", color: "#7d8d98" }}>{stat.label}</div><div className="font-mono font-medium" style={{ fontSize: 11, marginTop: 2, color: stat.color }}>{stat.value}</div></div>
           ))}
         </div>

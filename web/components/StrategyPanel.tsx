@@ -63,11 +63,14 @@ export default function StrategyPanel({ currentLap = 1, playbackSpeed = 1 }: { c
       lastProcessedMathRef.current = math;
     }
 
-    let compound: any = "INTERMEDIATE";
-    const recommendation = math.recommendation || "";
+    let compound: any = "MEDIUM";
+    const recommendation = (math.recommendation || "").toLowerCase();
 
-    if (recommendation.includes("Hards")) compound = "HARD";
-    else if (recommendation.includes("slicks")) compound = "SOFT";
+    if (recommendation.includes("hards")) compound = "HARD";
+    else if (recommendation.includes("mediums")) compound = "MEDIUM";
+    else if (recommendation.includes("slicks") || recommendation.includes("softs")) compound = "SOFT";
+    else if (recommendation.includes("intermediate")) compound = "INTERMEDIATE";
+    else if (recommendation.includes("wet")) compound = "WET";
     else if (["tyre_deg", "traffic", "penalty_5s"].includes(chaos.event)) {
       compound = "MEDIUM";
     }
