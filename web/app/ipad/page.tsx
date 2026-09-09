@@ -21,7 +21,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "minor_crash",
     label: "MINOR CRASH",
     subtitle: "Virtual Safety Car deployed — debris on track",
-    icon: "💥",
+    icon: "!",
     accentHue: 38,
     severity: "warning",
   },
@@ -29,7 +29,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "major_crash",
     label: "MAJOR CRASH",
     subtitle: "Full Safety Car — heavy barrier impact",
-    icon: "🚨",
+    icon: "▣",
     accentHue: 0,
     severity: "critical",
   },
@@ -37,7 +37,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "rain",
     label: "SURFACE WATER",
     subtitle: "Heavy downpour — aquaplaning risk high",
-    icon: "⛈",
+    icon: "≈",
     accentHue: 210,
     severity: "critical",
     intensity: "heavy",
@@ -46,7 +46,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "heatwave",
     label: "HEATWAVE",
     subtitle: "Track temperatures exceeding limits",
-    icon: "🔥",
+    icon: "°",
     accentHue: 25,
     severity: "warning",
   },
@@ -54,7 +54,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "traffic",
     label: "DRS TRAIN",
     subtitle: "Car stuck in turbulent dirty air",
-    icon: "🐌",
+    icon: "↗",
     accentHue: 215,
     severity: "info",
   },
@@ -62,7 +62,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "tyre_failure",
     label: "TYRE FAILURE",
     subtitle: "Sudden delamination — immediate box",
-    icon: "💥",
+    icon: "×",
     accentHue: 350,
     severity: "critical",
   },
@@ -70,7 +70,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "penalty_5s",
     label: "TIME PENALTY",
     subtitle: "5s added — track limits violation",
-    icon: "⏱",
+    icon: "+5",
     accentHue: 270,
     severity: "info",
   },
@@ -78,7 +78,7 @@ const CHAOS_BUTTONS: ChaosButton[] = [
     event: "tyre_deg",
     label: "TYRE CLIFF",
     subtitle: "Degradation spike — loss of rear grip",
-    icon: "📉",
+    icon: "⌁",
     accentHue: 340,
     severity: "warning",
   },
@@ -86,9 +86,9 @@ const CHAOS_BUTTONS: ChaosButton[] = [
 
 /* ─── SEVERITY COLORS ─── */
 const severityAccent = (severity: string) => {
-  if (severity === "critical") return "hsl(0, 85%, 55%)";
-  if (severity === "warning") return "hsl(38, 95%, 55%)";
-  return "hsl(210, 50%, 55%)";
+  if (severity === "critical") return "#d27d74";
+  if (severity === "warning") return "#c8a56d";
+  return "#84a9c7";
 };
 
 /* ─── COMPONENT ─── */
@@ -225,7 +225,7 @@ export default function StewardPage() {
   );
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden relative" style={{ background: "linear-gradient(180deg, #060a12 0%, #0d1320 40%, #0a0f1a 100%)" }}>
+    <div className="steward-console h-screen w-screen flex flex-col overflow-hidden relative">
       {/* Ambient scanline overlay */}
       <div ref={scanlineRef} className="absolute inset-0 pointer-events-none z-50" style={{
         background: "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.015) 50%, transparent 100%)",
@@ -242,22 +242,14 @@ export default function StewardPage() {
       }} />
 
       {/* ─── HEADER ─── */}
-      <header ref={headerRef} className="h-16 flex items-center justify-between px-8 shrink-0 relative z-10" style={{
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        background: "linear-gradient(180deg, rgba(15,20,35,0.95) 0%, rgba(10,15,26,0.8) 100%)",
-        backdropFilter: "blur(20px)",
-      }}>
+      <header ref={headerRef} className="steward-header h-16 flex items-center justify-between px-8 shrink-0 relative z-10">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-3 h-3 bg-red-500 rounded-sm" style={{ boxShadow: "0 0 12px rgba(239,68,68,0.5)" }} />
-            <span className="font-mono text-sm font-bold tracking-[0.25em] text-white">
-              APEX
-            </span>
-          </div>
-          <div className="w-px h-5 bg-white/10" />
-          <span className="text-[11px] text-white/30 uppercase tracking-[0.2em] font-light">
-            Race Steward Console
-          </span>
+          <a href="/" className="pitwall-brand" aria-label="Apex home">
+            <svg width="31" height="27" viewBox="0 0 31 27" fill="none" aria-hidden="true"><path d="M0 27 13 0h7L7 27H0Zm13 0 7-15 11 15h-9l-4-6-3 6h-2Z" fill="currentColor" /></svg>
+            <span>APEX</span>
+          </a>
+          <span className="header-slash">/</span>
+          <div className="workspace-name">RACE OPERATIONS<span>RACE CONTROL · 02</span></div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -271,9 +263,7 @@ export default function StewardPage() {
       </header>
 
       {/* ─── EVENT FLASH BANNER ─── */}
-      <div ref={flashRef} className="h-12 flex items-center justify-center shrink-0 relative z-10" style={{
-        borderBottom: "1px solid rgba(255,255,255,0.04)",
-      }}>
+      <div ref={flashRef} className="steward-flash h-12 flex items-center justify-center shrink-0 relative z-10">
         {lastEvent ? (
           <span className="font-mono text-sm font-bold tracking-wider" style={{
             background: "linear-gradient(90deg, #f59e0b, #ef4444)",
@@ -290,21 +280,21 @@ export default function StewardPage() {
       </div>
 
       {/* ─── BUTTON GRID ─── */}
-      <div ref={gridRef} className="flex-1 grid grid-cols-2 gap-4 p-5 overflow-hidden relative z-10">
+      <div ref={gridRef} className="steward-grid flex-1 grid grid-cols-2 gap-4 p-5 overflow-hidden relative z-10">
         {CHAOS_BUTTONS.map((btn, i) => {
           const hue = btn.accentHue;
-          const accent = `hsl(${hue}, 75%, 55%)`;
-          const accentDim = `hsla(${hue}, 60%, 45%, 0.15)`;
-          const accentGlow = `hsla(${hue}, 80%, 50%, 0.08)`;
+          const accent = severityAccent(btn.severity);
+          const accentDim = `${accent}26`;
+          const accentGlow = `${accent}12`;
 
           return (
             <button
               key={btn.event}
               ref={el => { btnRefs.current[i] = el; }}
               onClick={() => handleChaos(btn, i)}
-              className="group relative flex flex-col items-center justify-center gap-3 rounded-xl overflow-hidden select-none cursor-pointer"
+              className="scenario-card group relative flex flex-col items-center justify-center gap-3 rounded-xl overflow-hidden select-none cursor-pointer"
               style={{
-                background: `linear-gradient(170deg, ${accentGlow} 0%, rgba(12,17,28,0.95) 40%, rgba(8,12,22,0.98) 100%)`,
+                background: "#15191e",
                 border: `1px solid hsla(${hue}, 40%, 40%, 0.2)`,
                 transition: "border-color 0.3s ease",
               }}
