@@ -105,15 +105,20 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    // Use layout dimensions: the entire console may be visually scaled.
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (w === 0 || h === 0) {
+      animRef.current = requestAnimationFrame(render);
+      return;
+    }
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
     ctx.scale(dpr, dpr);
 
-    const w = rect.width;
-    const h = rect.height;
-    const scaleX = w / 800;
-    const scaleY = h / 440;
+    // Reserve room for driver labels beyond the circuit silhouette.
+    const scaleX = Math.max(1, w - 32) / 800;
+    const scaleY = Math.max(1, h - 24) / 440;
     const scale = Math.min(scaleX, scaleY);
     const offsetX = (w - 800 * scale) / 2;
     const offsetY = (h - 440 * scale) / 2;
@@ -287,8 +292,8 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
   const isYellowFlag = trackStatus.Status >= 2;
 
   return (
-    <div className="apex-card h-full min-h-0 relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 border-b border-white/[0.06] bg-[#101010]/90 px-3 py-2">
+    <div className="apex-card h-full min-h-0 flex flex-col overflow-hidden" style={{ padding: 0 }}>
+      <div className="shrink-0 flex items-center justify-between gap-2 border-b border-white/[0.06] bg-[#101010]/90 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isYellowFlag ? 'bg-yellow-400' : 'bg-[#7fae97]'}`} />
           <span className="truncate text-[10px] font-semibold tracking-[0.14em] text-slate-300">CIRCUIT POSITION</span>
@@ -297,14 +302,16 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
           {isYellowFlag ? 'YELLOW FLAG' : 'TRACK CLEAR'}
         </span>
       </div>
+      <div className="relative flex-1 min-h-0">
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
+        className="absolute inset-0 w-full h-full"
         style={{ display: "block" }}
         role="img"
         aria-label={`Simulated driver positions at Monza, lap ${currentLap} of 53`}
       />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-[#101010] to-transparent px-3 pb-2 pt-4">
+      </div>
+      <div className="shrink-0 flex items-center justify-between gap-2 border-t border-white/[0.04] bg-[#101010] px-3 py-2">
         <div className="flex items-center gap-2 font-mono text-[9px] tracking-wider text-slate-500">
           <span className=" text-slate-300">MONZA</span>
           <span>5.793 KM</span>
