@@ -126,7 +126,11 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
     ctx.clearRect(0, 0, w, h);
 
     // A restrained plotting grid gives the circuit a telemetry-display treatment.
-    ctx.fillStyle = '#101010';
+    const background = ctx.createRadialGradient(w * .54, h * .43, 0, w * .54, h * .43, Math.max(w, h) * .72);
+    background.addColorStop(0, '#17202a');
+    background.addColorStop(0.58, '#11171e');
+    background.addColorStop(1, '#0b0f14');
+    ctx.fillStyle = background;
     ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(170, 175, 180, 0.018)';
     ctx.lineWidth = 1;
@@ -170,6 +174,73 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
     ctx.stroke(circuitPath);
     ctx.setLineDash([]);
 
+    // Kerbs and braking boards give the real circuit silhouette some physical
+    // detail. The points come directly from the Monza telemetry polyline: where
+    // heading changes quickly, we draw a short alternating kerb across the track.
+    const kerbIndices: number[] = [];
+    for (let i = 5; i < TRACK_POINTS.length - 5; i += 2) {
+      const previous = TRACK_POINTS[i - 4];
+      const point = TRACK_POINTS[i];
+      const next = TRACK_POINTS[i + 4];
+      const incoming = Math.atan2(point.y - previous.y, point.x - previous.x);
+      const outgoing = Math.atan2(next.y - point.y, next.x - point.x);
+      let turn = Math.abs(outgoing - incoming);
+      if (turn > Math.PI) turn = Math.PI * 2 - turn;
+      if (turn > 0.11) kerbIndices.push(i);
+    }
+    kerbIndices.forEach((i, kerbIndex) => {
+      const point = TRACK_POINTS[i];
+      const next = TRACK_POINTS[Math.min(TRACK_POINTS.length - 1, i + 2)];
+      const angle = Math.atan2(next.y - point.y, next.x - point.x);
+      ctx.save();
+      ctx.translate(point.x, point.y);
+      ctx.rotate(angle);
+      ctx.globalAlpha = 0.9;
+      for (let stripe = -2; stripe <= 2; stripe++) {
+        ctx.fillStyle = stripe % 2 === 0 ? '#c9c5ba' : '#b06b60';
+        ctx.fillRect(stripe * 3.4 - 1.5, -11, 3.2, 3);
+        ctx.fillRect(stripe * 3.4 - 1.5, 8, 3.2, 3);
+      }
+      ctx.restore();
+      if (kerbIndex < 8) {
+        const boardX = point.x + Math.cos(angle + Math.PI / 2) * 20;
+        const boardY = point.y + Math.sin(angle + Math.PI / 2) * 20;
+        ctx.fillStyle = '#8995a0';
+        ctx.font = '600 8px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`T${kerbIndex + 1}`, boardX, boardY);
+      }
+    });
+
+    // Sector overlays make the circuit useful at a glance. They are deliberately
+    // thin and low contrast, like a real engineering timing trace.
+    const sectorColors = ['#6f9fc4', '#b48c62', '#789d87'];
+    for (let sector = 0; sector < 3; sector++) {
+      const start = Math.floor((TRACK_POINTS.length * sector) / 3);
+      const end = Math.floor((TRACK_POINTS.length * (sector + 1)) / 3);
+      ctx.beginPath();
+      ctx.moveTo(TRACK_POINTS[start].x, TRACK_POINTS[start].y);
+      for (let i = start + 1; i <= end; i++) {
+        const p = TRACK_POINTS[i % TRACK_POINTS.length];
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.strokeStyle = sectorColors[sector];
+      ctx.globalAlpha = 0.68;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Tiny distance ticks communicate direction and scale without adding noise.
+    ctx.fillStyle = '#7d96aa';
+    for (let i = 0; i < TRACK_POINTS.length; i += Math.max(1, Math.floor(TRACK_POINTS.length / 18))) {
+      const p = TRACK_POINTS[i];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Start/Finish line
     const sfPos = TRACK_POINTS[0];
 
@@ -182,14 +253,14 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
     ctx.rotate(angle);
 
     // Draw the line perfectly perpendicular to the track direction
-    ctx.fillStyle = "#c1c6c1";
+    ctx.fillStyle = "#d0d5d8";
     // x is along track direction, y is across. We want the line across the track.
     ctx.fillRect(-2, -12, 4, 24);
 
     // Draw the "S/F" text
     ctx.rotate(-angle); // unrotate text so it stays upright
     ctx.font = "bold 9px monospace";
-    ctx.fillStyle = "#c1c6c1";
+    ctx.fillStyle = "#aab7be";
     ctx.textAlign = "center";
     ctx.fillText("START / FINISH", 0, -19);
 
@@ -315,6 +386,7 @@ export default function TrackCanvas({ onLapChange, playbackSpeed = 1 }: TrackCan
         <div className="flex items-center gap-2 font-mono text-[9px] tracking-wider text-slate-500">
           <span className=" text-slate-300">MONZA</span>
           <span>5.793 KM</span>
+          <span className="ml-2 flex items-center gap-1.5" aria-label="Circuit sectors"><i className="h-1.5 w-1.5 rounded-full bg-[#6f9fc4]" />S1 <i className="ml-1 h-1.5 w-1.5 rounded-full bg-[#b48c62]" />S2 <i className="ml-1 h-1.5 w-1.5 rounded-full bg-[#789d87]" />S3</span>
         </div>
         <span className="font-mono text-[9px] tracking-wider text-slate-500">LAP <span className="text-slate-200">{String(currentLap).padStart(2, '0')}</span> / 53</span>
       </div>
