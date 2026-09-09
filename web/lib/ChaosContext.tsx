@@ -51,7 +51,6 @@ const DEFAULT_STATE: ChaosState = {
     tireDegRate: 1.0,
     timePenalty: 0,
     connected: false,
-    requestStrategy: () => { },
 };
 
 const ChaosContext = createContext<ChaosContextValue>({

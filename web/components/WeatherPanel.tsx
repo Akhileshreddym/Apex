@@ -25,7 +25,7 @@ export default function WeatherPanel({ currentLap = 31 }: WeatherPanelProps) {
     <div className="apex-card flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="apex-label">WEATHER</span>
-        <span className="text-base">{isRaining ? "🌧" : chaos.weather.trackTempBoost > 10 ? "🔥" : "⛅"}</span>
+        <span className="text-[8px] tracking-wide text-gray-400">{isRaining ? "WET" : chaos.weather.trackTempBoost > 10 ? "HIGH TEMP" : "DRY"}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
@@ -63,7 +63,7 @@ export default function WeatherPanel({ currentLap = 31 }: WeatherPanelProps) {
           <span className="text-[10px] text-gray-500">RAIN</span>
           <span
             className="font-mono text-[11px] font-bold"
-            style={{ color: isRaining ? "#ef4444" : "#22c55e" }}
+            style={{ color: isRaining ? "#b47872" : "#92a28f" }}
           >
             {isRaining ? "YES" : "NO"}
           </span>
@@ -88,7 +88,7 @@ export default function WeatherPanel({ currentLap = 31 }: WeatherPanelProps) {
                   </span>
                   <span
                     className="font-mono font-bold"
-                    style={{ color: forecastRain ? "#ef4444" : "#22c55e" }}
+                    style={{ color: forecastRain ? "#b47872" : "#92a28f" }}
                   >
                     {forecastRain ? "RAIN" : "DRY"}
                   </span>

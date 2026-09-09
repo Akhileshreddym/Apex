@@ -23,3 +23,5 @@ server/server.log
 .env.local
 .env
 
+
+**/.next-preview/

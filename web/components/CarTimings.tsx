@@ -1,5 +1,7 @@
 "use client";
 
+import { instrumentColor } from "@/lib/display-colors";
+
 import { useState, useEffect, useRef } from "react";
 import { useChaos } from "@/lib/ChaosContext";
 import { mockTimingData, TIRE_COLORS, trackStatusForLap, weatherForLap } from "@/lib/mock-data";
@@ -516,16 +518,16 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
   return (
     <div className="apex-card flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between mb-2">
-        <span className="apex-label">LIVE TIMING</span>
+        <span className="apex-label">RACE CLASSIFICATION</span>
         <div className="flex items-center gap-1">
           <div className={`h-1.5 w-1.5 rounded-full ${chaos.connected ? 'bg-apex-cyan' : 'bg-gray-600'} animate-pulse-glow`} />
           <span className={`apex-label ${chaos.connected ? 'text-apex-cyan' : 'text-gray-600'}`}>
-            {chaos.connected ? 'LIVE' : 'STATIC'}
+            {chaos.connected ? 'CONNECTED' : 'SIMULATED'}
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 text-[9px] text-gray-600 uppercase tracking-wider pb-1 border-b border-gray-800 px-1">
+      <div className="timing-table-head gap-0 text-[9px] text-gray-600 uppercase tracking-wider pb-1 border-b border-gray-800 px-1">
         <span>POS</span>
         <span></span>
         <span>DRIVER</span>
@@ -543,12 +545,12 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
             flex directions preserve order. */}
         <div className="flex flex-col relative w-full pb-8">
           {timingData.map((d) => {
-            const tireColor = TIRE_COLORS[d.Compound] ?? "#64748b";
+            const tireColor = instrumentColor(TIRE_COLORS[d.Compound] ?? "#64748b");
             return (
               <div
                 key={d.Abbreviation} // Key maintains identity so DOM nodes slide if animated
-                className={`grid grid-cols-[32px_48px_1fr_64px_64px_72px_72px_40px_40px] gap-0 items-center py-1.5 px-1 border-b transition-colors ${d.Abbreviation === "APX"
-                  ? "bg-[#FFD700]/10 border-[#FFD700]/40 hover:bg-[#FFD700]/20"
+                className={`timing-table-row gap-0 items-center py-1.5 px-1 border-b transition-colors ${d.Abbreviation === "APX"
+                  ? "bg-[#8AB6F1]/10 border-[#8AB6F1]/40 hover:bg-[#8AB6F1]/20"
                   : "border-gray-800/30 hover:bg-white/[0.02]"
                   } ${d.Status === "OUT" ? "opacity-30" : ""}`}
               >
@@ -563,14 +565,14 @@ export default function CarTimings({ currentLap, onLeaderChange, onRaceEvent }: 
                 <div className="flex items-center">
                   <div
                     className="w-1 h-3.5 mr-2 rounded-sm"
-                    style={{ backgroundColor: `#${d.TeamColor}` }}
+                    style={{ backgroundColor: instrumentColor(`#${d.TeamColor}`) }}
                   />
-                  <span className={`font-mono text-[11px] font-bold ${d.Abbreviation === "APX" ? "text-[#FFD700]" : "text-gray-100"}`}>
+                  <span className={`font-mono text-[11px] font-bold ${d.Abbreviation === "APX" ? "text-[#8AB6F1]" : "text-gray-100"}`}>
                     {d.Abbreviation}
                   </span>
                 </div>
 
-                <span className={`text-[10px] truncate lowercase font-light ${d.Abbreviation === "APX" ? "text-[#FFD700]/80" : "text-gray-500"}`} style={{ fontVariant: 'small-caps', letterSpacing: '0.05em' }}>
+                <span className={`text-[10px] truncate font-medium ${d.Abbreviation === "APX" ? "text-[#8AB6F1]/80" : "text-gray-500"}`} style={{ fontVariant: 'small-caps', letterSpacing: '0.05em' }}>
                   {d.FullName}
                 </span>
 

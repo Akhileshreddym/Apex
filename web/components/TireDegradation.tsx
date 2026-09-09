@@ -43,7 +43,7 @@ export default function TireDegradation() {
     }
 
     // Cliff zone
-    ctx.fillStyle = "#ef444433";
+    ctx.fillStyle = "#cb858133";
     ctx.fillRect(
       pad.left,
       pad.top + plotH * (1 - CLIFF_THRESHOLD / 100),
@@ -51,7 +51,7 @@ export default function TireDegradation() {
       plotH * (CLIFF_THRESHOLD / 100)
     );
 
-    ctx.strokeStyle = "#ef4444";
+    ctx.strokeStyle = "#cb8581";
     ctx.lineWidth = 0.5;
     ctx.setLineDash([4, 4]);
     const cliffY = pad.top + plotH * (1 - CLIFF_THRESHOLD / 100);
@@ -62,7 +62,7 @@ export default function TireDegradation() {
     ctx.setLineDash([]);
 
     ctx.font = "8px JetBrains Mono, monospace";
-    ctx.fillStyle = "#ef4444";
+    ctx.fillStyle = "#cb8581";
     ctx.textAlign = "left";
     ctx.fillText("CLIFF", pad.left + 2, cliffY - 2);
 
@@ -78,8 +78,8 @@ export default function TireDegradation() {
     // Fill
     const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
     const isUrgent = chaos.tireDegRate > 1.5;
-    gradient.addColorStop(0, isUrgent ? "#ef444433" : "#22d3ee33");
-    gradient.addColorStop(1, isUrgent ? "#ef444400" : "#22d3ee00");
+    gradient.addColorStop(0, isUrgent ? "#cb858133" : "#78a5db33");
+    gradient.addColorStop(1, isUrgent ? "#cb858100" : "#78a5db00");
 
     ctx.beginPath();
     ctx.moveTo(pad.left, pad.top + plotH);
@@ -101,7 +101,7 @@ export default function TireDegradation() {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = isUrgent ? "#ef4444" : "#22d3ee";
+    ctx.strokeStyle = isUrgent ? "#cb8581" : "#78a5db";
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -113,10 +113,10 @@ export default function TireDegradation() {
     ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
     ctx.fillStyle =
       lastD.DegPct <= CLIFF_THRESHOLD
-        ? "#ef4444"
+        ? "#cb8581"
         : lastD.DegPct <= WARNING_THRESHOLD
-          ? "#f97316"
-          : "#22d3ee";
+          ? "#cfa36a"
+          : "#78a5db";
     ctx.fill();
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 1;
@@ -164,10 +164,10 @@ export default function TireDegradation() {
             style={{
               color:
                 currentDeg <= CLIFF_THRESHOLD
-                  ? "#ef4444"
+                  ? "#cb8581"
                   : currentDeg <= WARNING_THRESHOLD
-                    ? "#f97316"
-                    : "#22d3ee",
+                    ? "#cfa36a"
+                    : "#78a5db",
             }}
           >
             {Math.round(currentDeg)}%

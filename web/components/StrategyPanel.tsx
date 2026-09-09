@@ -1,7 +1,9 @@
 "use client";
 
+import { instrumentColor } from "@/lib/display-colors";
+
 import { useChaos } from "@/lib/ChaosContext";
-import { mockStrategies, TIRE_COLORS } from "@/lib/mock-data";
+import { TIRE_COLORS } from "@/lib/mock-data";
 import type { StrategyRec } from "@/lib/types";
 import { useState, useEffect, useRef } from "react";
 
@@ -102,78 +104,54 @@ export default function StrategyPanel({ currentLap = 1, playbackSpeed = 1 }: { c
   }, [chaos.mathResults, chaos.event, currentLap, playbackSpeed]);
 
   return (
-    <div className="apex-card flex flex-col h-full overflow-hidden">
-      <div className="flex items-center justify-between mb-2">
-        <span className="apex-label">STRATEGY</span>
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 ${chaos.connected
-          ? 'text-apex-cyan bg-apex-cyan/10 animate-pulse'
-          : 'text-gray-600 bg-gray-800'
-          }`}>
-          {chaos.connected ? 'WS:LIVE' : 'STATIC'}
+    <section className="apex-card flex h-full min-h-0 flex-col overflow-hidden" style={{ padding: 0, borderRadius: 6 }}>
+      <header className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-3 py-2.5">
+        <div className="flex items-center gap-2">
+
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-200">Strategy desk</h2>
+        </div>
+        <span className={`flex items-center gap-1.5 font-mono text-[8px] tracking-wider ${chaos.connected ? "text-[#87b9a3]" : "text-gray-500"}`}>
+          <span className={`h-1 w-1 rounded-full ${chaos.connected ? "bg-[#87b9a3]" : "bg-gray-500"}`} />
+          {chaos.connected ? "ONLINE" : "OFFLINE"}
         </span>
-      </div>
+      </header>
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-2">
-        {strategies.map((s) => {
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
+        {strategies.length === 0 && (
+          <div className="flex min-h-0 flex-1 flex-col justify-center px-2 py-3">
+            <p className="mb-1 font-mono text-[8px] uppercase tracking-[0.18em] text-[#87b9a3]">{chaos.connected ? "Awaiting race data" : "Engine disconnected"}</p>
+            <h3 className="text-sm font-semibold text-gray-200">{chaos.connected ? "Monitoring the race" : "Strategy on standby"}</h3>
+            <p className="mt-2 max-w-[230px] text-[10px] leading-relaxed text-gray-500">{chaos.connected ? "Race conditions and incidents will generate recommendations here." : "Connect the strategy engine to receive pit calls and compound recommendations."}</p>
+          </div>
+        )}
+        {strategies.map((s, index) => {
           const style = PRIORITY_STYLES[s.priority];
-          const tireColor = TIRE_COLORS[s.Compound] ?? "#64748b";
+          const tireColor = instrumentColor(TIRE_COLORS[s.Compound] ?? "#64748b");
           return (
-            <div
-              key={s.id}
-              className={`border-l-2 ${style.border} ${style.bg} p-2 transition-all`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[9px] font-bold ${style.text}`}>
-                    {style.label}
-                  </span>
-                  <span className="text-[9px] text-gray-600">
-                    LAP {s.LapNumber}
-                  </span>
-                </div>
-                <span className="font-mono text-sm font-bold text-gray-100">
-                  {s.winProb}%
-                </span>
+            <article key={s.id} className={`shrink-0 rounded border border-white/[0.06] border-l-2 ${style.border} ${index === 0 ? style.bg : "bg-white/[0.015]"} p-2.5`}>
+              <div className="mb-2 flex items-center justify-between font-mono text-[8px]">
+                <span className={`font-bold tracking-wider ${style.text}`}>{index === 0 ? "LATEST / " : ""}{style.label}</span>
+                <span className="text-gray-500">LAP {String(s.LapNumber).padStart(2, "0")}</span>
               </div>
-
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`font-mono text-xs font-bold ${style.text}`}>
-                  {s.action}
-                </span>
-                <div
-                  className="h-3 px-1.5 flex items-center text-[8px] font-bold uppercase"
-                  style={{
-                    backgroundColor: tireColor + "22",
-                    color: tireColor,
-                    border: `1px solid ${tireColor}44`,
-                  }}
-                >
+              <h3 className="text-[12px] font-bold tracking-wide text-gray-100">{s.action}</h3>
+              <p className="mt-1.5 text-[10px] leading-relaxed text-gray-400">{s.detail}</p>
+              <div className="mt-2.5 flex items-center justify-between border-t border-white/[0.06] pt-2">
+                <span className="flex items-center gap-1.5 font-mono text-[8px] font-semibold" style={{ color: tireColor }}>
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full border-2 text-[7px]" style={{ borderColor: tireColor }}>{s.Compound.charAt(0)}</span>
                   {s.Compound}
-                </div>
+                </span>
+                <div className="flex items-baseline gap-1.5"><span className="text-[7px] uppercase tracking-wider text-gray-500">Win prob.</span><span className="font-mono text-[13px] font-semibold text-gray-100">{s.winProb}%</span></div>
               </div>
-
-              <p className="text-[10px] text-gray-500 leading-relaxed">
-                {s.detail}
-              </p>
-
-              <div className="mt-1.5 h-1 bg-gray-800 overflow-hidden">
-                <div
-                  className="h-full transition-all duration-700"
-                  style={{
-                    width: `${s.winProb}%`,
-                    backgroundColor:
-                      s.winProb >= 75
-                        ? "#22c55e"
-                        : s.winProb >= 50
-                          ? "#f97316"
-                          : "#ef4444",
-                  }}
-                />
+              <div className="mt-2 h-0.5 overflow-hidden bg-white/[0.06]">
+                <div className="h-full transition-all duration-700" style={{ width: `${Math.max(0, Math.min(100, s.winProb))}%`, backgroundColor: s.winProb >= 75 ? "#87b9a3" : s.winProb >= 50 ? "#6d9ed8" : "#cd8985" }} />
               </div>
-            </div>
+            </article>
           );
         })}
       </div>
-    </div>
+      <footer className="flex shrink-0 items-center justify-between border-t border-white/[0.06] px-3 py-1.5 font-mono text-[8px] text-gray-500">
+        <span>DECISION SUPPORT</span><span>{strategies.length} CALLS</span>
+      </footer>
+    </section>
   );
 }

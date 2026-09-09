@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { RaceEvent } from "@/lib/types";
 import TrackCanvas from "@/components/TrackCanvas";
 import DriverCard from "@/components/DriverCard";
@@ -13,172 +13,77 @@ import RaceHistory from "@/components/RaceHistory";
 import { ChaosProvider, useChaos } from "@/lib/ChaosContext";
 import { trackStatusForLap } from "@/lib/mock-data";
 
-function Dashboard({ driverName, driverPhoto }: { driverName: string; driverPhoto: string }) {
+function Dashboard() {
   const chaos = useChaos();
   const [currentLap, setCurrentLap] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [allDrivers, setAllDrivers] = useState<any[]>([]);
+  const [raceEvents, setRaceEvents] = useState<RaceEvent[]>([]);
   const handleLapChange = useCallback((lap: number) => setCurrentLap(lap), []);
-  const handleLeaderChange = useCallback((leader: any, all?: any[]) => {
+  const handleLeaderChange = useCallback((_leader: any, all?: any[]) => {
     if (all) setAllDrivers(all);
   }, []);
-  const [raceEvents, setRaceEvents] = useState<RaceEvent[]>([]);
   const handleRaceEvent = useCallback((event: RaceEvent) => {
     setRaceEvents(prev => [event, ...prev]);
   }, []);
+  const caution = trackStatusForLap(currentLap).Status >= 2;
+
+  const [viewport, setViewport] = useState({ width: 1440, height: 900 });
+  const shellRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  const scale = Math.min(1, viewport.width / 1180, viewport.height / 700);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const update = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await shellRef.current?.requestFullscreen?.();
+  };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-apex-bg overflow-hidden">
-      {/* Top Bar */}
-      <header className="h-11 flex items-center justify-between px-5 shrink-0" style={{
-        background: 'linear-gradient(180deg, rgba(14,21,37,0.95) 0%, rgba(10,15,26,0.9) 100%)',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-        backdropFilter: 'blur(12px)',
-      }}>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 bg-apex-red rounded-sm" style={{ boxShadow: '0 0 8px rgba(239,68,68,0.4)' }} />
-            <span className="text-xs font-bold tracking-[0.2em] text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-              APEX
-            </span>
-          </div>
-          <div className="w-px h-4 bg-white/6" />
-          <span className="text-[10px] text-white/25 uppercase tracking-wider">
-            PIT WALL — ITALIAN GRAND PRIX
-          </span>
-        </div>
+    <div ref={shellRef} className="pitwall-viewport">
+      <div className="pitwall-console" style={{ width: viewport.width / scale, height: viewport.height / scale, transform: `scale(${scale})` }}>
+        <header className="command-header">
+          <a href="/" className="pitwall-brand" aria-label="Apex home"><svg width="31" height="27" viewBox="0 0 31 27" fill="none" aria-hidden="true"><path d="M0 27 13 0h7L7 27H0Zm13 0 7-15 11 15h-9l-4-6-3 6h-2Z" fill="currentColor" /></svg><span>APEX</span></a>
+          <span className="header-slash">/</span><div className="workspace-name">RACE OPERATIONS<span>PIT WALL · 01</span></div>
+          <div className="event-identity"><span className="tricolore" /><strong>ITALIAN GRAND PRIX</strong><span>MONZA · 2023</span></div>
+          <div className="header-actions"><span className="connection-indicator"><i className={chaos.connected ? 'signal-dot' : 'signal-dot offline'} />{chaos.connected ? 'ENGINE ONLINE' : 'DEMO MODE'}</span><a href="/ipad">Race control ↗</a><button onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}>{fullscreen ? '↙' : '⛶'}</button></div>
+        </header>
 
-        {/* Playback Controls */}
-        <div className="flex items-center gap-1.5 flex-1 justify-center px-4">
-          {[1, 2, 5, 10, 50].map(speed => (
-            <button
-              key={speed}
-              onClick={() => setPlaybackSpeed(speed)}
-              className={`px-2.5 py-1 text-[10px] font-mono rounded transition-all duration-200 ${playbackSpeed === speed
-                ? 'bg-apex-red text-white font-bold shadow-lg shadow-red-500/20'
-                : 'bg-white/[0.03] text-white/30 hover:bg-white/[0.06] hover:text-white/50'
-                }`}
-            >
-              {speed}x
-            </button>
-          ))}
-          <div className="w-px h-3 bg-white/6 mx-1" />
-          <button
-            onClick={() => setPlaybackSpeed(5000)}
-            className={`px-3 py-1 text-[10px] font-mono rounded transition-all duration-200 ${playbackSpeed === 5000
-              ? 'bg-apex-cyan text-black font-bold shadow-lg shadow-cyan-500/20'
-              : 'bg-cyan-500/10 text-cyan-400/60 hover:bg-cyan-500/20 hover:text-cyan-400'
-              }`}
-          >
-            SKIP TO RESULTS
-          </button>
-        </div>
+        <section className="session-strip" aria-label="Race playback">
+          <div className="lap-readout"><span>LAP</span><strong>{String(currentLap).padStart(2, '0')}</strong><span className="lap-total">/ 53</span></div>
+          <div className={`flag-readout ${caution ? 'is-caution' : ''}`}><i /><strong>{currentLap >= 53 ? 'CHEQUERED FLAG' : caution ? 'YELLOW FLAG' : 'GREEN FLAG'}</strong><span>{currentLap >= 53 ? 'Session complete' : caution ? 'No overtaking' : 'Track clear'}</span></div>
+          <div className="session-detail"><span>CIRCUIT</span><strong>5.793 <small>KM</small></strong></div>
+          <div className="session-detail"><span>DISTANCE</span><strong>{Math.round(currentLap / 53 * 100)}<small>%</small></strong></div>
+          <div className="playback-controls"><span>SIMULATION RATE</span><div className="rate-buttons">{[1, 2, 5, 10, 50].map(speed => <button key={speed} aria-pressed={playbackSpeed === speed} onClick={() => setPlaybackSpeed(speed)}>{speed}×</button>)}</div><button className="skip-button" aria-pressed={playbackSpeed === 5000} onClick={() => setPlaybackSpeed(5000)}>RESULTS <span>»</span></button></div>
+          <div className="session-progress"><i style={{ width: `${currentLap / 53 * 100}%` }} /></div>
+        </section>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-apex-green animate-pulse" style={{ boxShadow: '0 0 6px rgba(34,197,94,0.4)' }} />
-            <span className="text-[10px] text-white/30 font-mono">
-              RACE — LAP {currentLap}/53
-            </span>
-          </div>
-          <div className="w-px h-3 bg-white/6" />
-          <span className="text-[10px] text-white/15 font-mono">
-            SESSION: 1:02:34
-          </span>
-          <div className="w-px h-3 bg-white/6" />
-          <div className="flex items-center gap-1">
-            <div className={`h-1.5 w-1.5 rounded-full ${chaos.connected ? 'bg-apex-cyan' : 'bg-white/20'} animate-pulse`} style={chaos.connected ? { boxShadow: '0 0 6px rgba(34,211,238,0.4)' } : {}} />
-            <span className={`text-[10px] font-mono ${chaos.connected ? 'text-cyan-400/70' : 'text-white/15'}`}>
-              {chaos.connected ? 'WS:LIVE' : 'WS:OFF'}
-            </span>
-          </div>
-        </div>
-      </header>
+        <aside className="radio-strip" aria-live="polite"><span className="radio-label"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true"><path d="M3 13V9a7 7 0 0114 0v4M3 10h3v7H3v-7Zm11 0h3v7h-3v-7Z" stroke="currentColor" strokeWidth="1.5" /></svg>RACE ENGINEER</span><span className="radio-event">{chaos.mathResults ? chaos.event.replaceAll('_', ' ') : 'STANDBY'}</span><p title={chaos.mathResults?.recommendation}>{chaos.mathResults?.recommendation || 'Monitoring race conditions. Strategy recommendations will appear here.'}</p><span className="radio-probability">WIN PROBABILITY <b>{chaos.mathResults ? `${chaos.mathResults.win_probability}%` : '—'}</b></span></aside>
 
-      {/* AI Radio Call Banner */}
-      {chaos.mathResults && (
-        <div className="px-5 py-2.5 flex items-start gap-3 shrink-0 animate-slide-in" style={{
-          background: 'linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(10,15,26,0.4) 50%, rgba(10,15,26,0) 100%)',
-          borderBottom: '1px solid rgba(239,68,68,0.08)',
-          borderLeft: '2px solid rgba(239,68,68,0.5)',
-        }}>
-          <div className="shrink-0 mt-0.5">
-            <div className="w-6 h-6 rounded bg-red-500/10 border border-red-500/20 flex items-center justify-center text-[10px]">📡</div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[9px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
-                {chaos.event.toUpperCase().replace("_", " ")}
-              </span>
-              <span className="text-[9px] text-white/20 font-mono">AI ENGINEER</span>
-              <span className="text-[9px] font-bold text-white/40 font-mono ml-auto">
-                WIN PROB: <span className={`${chaos.mathResults.win_probability >= 50 ? 'text-green-400' : 'text-orange-400'}`}>{chaos.mathResults.win_probability}%</span>
-              </span>
-            </div>
-            <p className="text-[11px] text-white/40 leading-relaxed font-mono">
-              {chaos.mathResults.recommendation}
-            </p>
-            {chaos.radioCall && (
-              <p className="text-[10px] text-white/25 leading-relaxed italic mt-0.5">
-                🎙 &quot;{chaos.radioCall}&quot;
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+        <main className="pitwall-grid" aria-label="Pit wall dashboard">
+          <section className="driver-module" aria-label="Driver telemetry"><DriverCard allDrivers={allDrivers} currentLap={currentLap} customName="Brad Pitt" customPhoto="/driver_apx.jpg" /></section>
+          <section className="circuit-module" aria-label="Circuit overview"><TrackCanvas onLapChange={handleLapChange} playbackSpeed={playbackSpeed} /></section>
+          <section className="strategy-module" aria-label="Strategy recommendations"><StrategyPanel currentLap={currentLap} playbackSpeed={playbackSpeed} /></section>
+          <section className="conditions-module" aria-label="Race conditions"><PitWindow currentLap={currentLap} /><WeatherPanel currentLap={currentLap} /><TireDegradation /></section>
+          <section className="timing-module" aria-label="Driver standings"><CarTimings currentLap={currentLap} onLeaderChange={handleLeaderChange} onRaceEvent={handleRaceEvent} /></section>
+          <section className="history-module" aria-label="Race event history"><RaceHistory currentLap={currentLap} raceEvents={raceEvents} /></section>
+        </main>
 
-      {/* Main Grid */}
-      <div className="flex-1 grid grid-cols-[300px_1fr_280px] grid-rows-[1fr_1fr] gap-[3px] overflow-hidden min-h-0 p-[3px]" style={{ background: 'var(--apex-bg)' }}>
-        <div className="row-span-1 min-h-0"><DriverCard allDrivers={allDrivers} currentLap={currentLap} customName={driverName} customPhoto={driverPhoto} /></div>
-        <div className="row-span-1 min-h-0"><TrackCanvas onLapChange={handleLapChange} playbackSpeed={playbackSpeed} /></div>
-        <div className="row-span-1 min-h-0"><StrategyPanel currentLap={currentLap} playbackSpeed={playbackSpeed} /></div>
-        <div className="row-span-1 flex flex-col gap-[3px] overflow-y-auto min-h-0">
-          <PitWindow currentLap={currentLap} />
-          <WeatherPanel />
-          <TireDegradation />
-        </div>
-        <div className="row-span-1 min-h-0"><CarTimings currentLap={currentLap} onLeaderChange={handleLeaderChange} onRaceEvent={handleRaceEvent} /></div>
-        <div className="row-span-1 min-h-0"><RaceHistory currentLap={currentLap} raceEvents={raceEvents} /></div>
+        <footer className="console-footer"><span><i className="signal-dot" />SIMULATION SESSION <b>ITA / RACE</b></span><span className="footer-radio">{chaos.radioCall ? `RADIO / “${chaos.radioCall}”` : 'APEX RACING · RACE STRATEGY & TELEMETRY'}</span><span>HACKLYTICS <b>2026</b></span></footer>
       </div>
-
-      {/* Bottom Status Bar */}
-      <footer className="h-7 flex items-center justify-between px-5 shrink-0" style={{
-        background: 'linear-gradient(180deg, rgba(10,15,26,0.8) 0%, rgba(6,10,18,0.95) 100%)',
-        borderTop: '1px solid rgba(255,255,255,0.03)',
-      }}>
-        <div className="flex items-center gap-3 flex-1 overflow-hidden">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className={`h-1.5 w-1.5 rounded-full ${trackStatusForLap(currentLap).Status >= 2 ? 'bg-yellow-500' : 'bg-apex-green'} animate-pulse`} />
-            <span className={`text-[9px] font-mono font-bold ${trackStatusForLap(currentLap).Status >= 2 ? 'text-yellow-400' : 'text-white/25'}`}>
-              {trackStatusForLap(currentLap).Status >= 2 ? 'YELLOW' : 'RUN'}
-            </span>
-          </div>
-          <div className="w-px h-3 bg-white/5" />
-          <span className="text-[9px] text-white/20 font-mono truncate">
-            {chaos.mathResults
-              ? `⚠ ${chaos.event.toUpperCase().replace("_", " ")} DETECTED — WIN PROB: ${chaos.mathResults.win_probability}% — ${chaos.mathResults.recommendation}`
-              : trackStatusForLap(currentLap).Status >= 2
-                ? "⚠ YELLOW FLAG — CAUTION ON TRACK — NO OVERTAKING"
-                : "SYSTEMS NOMINAL — ALL CHANNELS ACTIVE"}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[9px] text-white/12 font-mono">MONTE CARLO 10K</span>
-          <div className="w-px h-3 bg-white/5" />
-          <span className="text-[9px] text-white/12 font-mono">SKLEARN v1</span>
-          <div className="w-px h-3 bg-white/5" />
-          <span className="text-[9px] text-white/8 font-mono">HACKLYTICS 2026</span>
-          <div className="w-1 h-1 bg-red-500 rounded-sm" style={{ boxShadow: '0 0 4px rgba(239,68,68,0.3)' }} />
-        </div>
-      </footer>
     </div>
   );
 }
 
 export default function PitWall() {
-  return (
-    <ChaosProvider>
-      <Dashboard driverName="Brad Pitt" driverPhoto="/driver_apx.jpg" />
-    </ChaosProvider>
-  );
+  return <ChaosProvider><Dashboard /></ChaosProvider>;
 }

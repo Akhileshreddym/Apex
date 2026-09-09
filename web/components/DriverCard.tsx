@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { instrumentColor } from "@/lib/display-colors";
+
+import { useState, useEffect } from "react";
 import { mockTimingData, TIRE_COLORS } from "@/lib/mock-data";
 import { formatLapTime, formatSectorTime } from "@/lib/format";
 
@@ -43,7 +45,7 @@ export default function DriverCard({ allDrivers, currentLap = 1, customName, cus
     allDrivers?.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
     mockTimingData.find((dr: any) => dr.Abbreviation === FOCUS_DRIVER) ??
     mockTimingData[0];
-  const tireColor = TIRE_COLORS[d.Compound] ?? "#64748b";
+  const tireColor = instrumentColor(TIRE_COLORS[d.Compound] ?? "#64748b");
 
   // Simulate speed, gear, and RPM that update every tick
   const raceOver = currentLap >= 53;
@@ -64,162 +66,69 @@ export default function DriverCard({ allDrivers, currentLap = 1, customName, cus
     return () => clearInterval(interval);
   }, [raceOver]);
 
-  const displayName = d.Abbreviation === "APX" ? "Brad Pitt" : d.FullName;
+  const displayName = customName || (d.Abbreviation === "APX" ? "Brad Pitt" : d.FullName);
   const firstName = displayName?.split(" ")[0] ?? "";
   const lastName = displayName?.split(" ").slice(1).join(" ") ?? "";
   const flag = d.Abbreviation === "APX" ? "🇺🇸" : (COUNTRY_FLAGS[d.FullName] ?? "🏁");
   const driverTeam = d.Abbreviation === "APX" ? "APEX RACING" : d.TeamName;
 
   return (
-    <div className="apex-card flex flex-col h-full overflow-hidden relative">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-1.5 shrink-0">
-        <span className="apex-label">DRIVER FOCUS</span>
-        <span
-          className="text-[10px] font-bold px-1.5 py-0.5"
-          style={{ backgroundColor: `#${d.TeamColor}22`, color: `#${d.TeamColor}` }}
-        >
-          P{d.Position}
+    <div className="apex-card relative flex h-full min-h-0 flex-col overflow-hidden" style={{ padding: 12, gap: 10 }}>
+      <div className="flex shrink-0 items-center justify-between" style={{ marginBottom: 0 }}>
+        <span style={{ fontSize: 9, letterSpacing: "0.16em", fontWeight: 700, color: "#96a3ad" }}>CAR TELEMETRY</span>
+        <span className="flex items-center gap-1.5 font-mono" style={{ fontSize: 9, color: "#8da2a9" }}>
+          <span className="h-1 w-1 rounded-full" style={{ background: raceOver ? "#8da2a9" : "#8eb9ef" }} />
+          {raceOver ? "SESSION END" : "SIMULATED"}
         </span>
       </div>
 
-      {/* Main layout: Photo left, Info right */}
-      <div className="flex gap-3 flex-1 min-h-0">
-        {/* Driver Photo — large, matching reference */}
-        <div
-          className="w-[130px] shrink-0 overflow-hidden relative"
-          style={{
-            borderLeft: `3px solid #${d.TeamColor}`,
-            background: `linear-gradient(135deg, #${d.TeamColor}15, #0a0f1a)`,
-          }}
-        >
-          <img
-            src={d.Abbreviation === "APX" ? (customPhoto || "/driver_apx.jpg") : "/driver_ver.png"}
-            alt={displayName}
-            className="w-full h-full object-cover object-top"
-          />
-          {/* Bottom gradient */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-12"
-            style={{ background: "linear-gradient(transparent, #0a0f1a)" }}
-          />
-          {/* Team color glow at bottom */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-1"
-            style={{ background: `#${d.TeamColor}` }}
-          />
+      <div className="flex min-h-0 items-center gap-2.5">
+        <div className="relative shrink-0 overflow-hidden" style={{ width: 44, height: 49, background: "#292b2d", borderRadius: 3 }}>
+          <img src={d.Abbreviation === "APX" ? (customPhoto || "/driver_apx.jpg") : "/driver_ver.png"} alt={displayName} className="h-full w-full object-cover object-top" style={{ borderRadius: 3 }} />
+          <span className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: "#8eb9ef" }} />
         </div>
-
-        {/* Right side: Name + Telemetry + Timing */}
-        <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5">
-          {/* Name block */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-lg leading-none">{flag}</span>
-              <span
-                className="text-sm font-bold text-gray-300 uppercase tracking-wide"
-                style={{ lineHeight: 1.1 }}
-              >
-                {firstName}
-              </span>
-            </div>
-            <div
-              className="text-xl font-black uppercase tracking-tight truncate"
-              style={{ color: `#${d.TeamColor}`, lineHeight: 1 }}
-            >
-              {lastName}
-            </div>
-            <div className="text-[9px] text-gray-600 uppercase tracking-widest mt-0.5">
-              {d.TeamName}
-            </div>
-          </div>
-
-          {/* Live Telemetry — Speed / Gear / RPM */}
-          <div className="flex flex-col gap-0.5 mt-2">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[9px] text-gray-500 uppercase w-10">SPEED:</span>
-              <span className="font-mono text-base font-black text-gray-100 transition-all duration-300">
-                {telemetry.speed}
-              </span>
-              <span className="text-[9px] text-gray-500">km/h</span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[9px] text-gray-500 uppercase w-10">GEAR:</span>
-              <span className="font-mono text-base font-black text-gray-100 transition-all duration-300">
-                {telemetry.gear}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[9px] text-gray-500 uppercase w-10">RPM:</span>
-              <span className="font-mono text-base font-black text-gray-100 transition-all duration-300">
-                {telemetry.rpm.toLocaleString()}
-              </span>
-            </div>
-          </div>
-
-          {/* Tire badge */}
-          <div className="flex items-center gap-2 mt-2">
-            <div
-              className="h-5 px-2 flex items-center text-[9px] font-bold uppercase"
-              style={{
-                backgroundColor: tireColor + "22",
-                color: tireColor,
-                border: `1px solid ${tireColor}44`,
-              }}
-            >
-              {d.Compound} — L{d.TyreLife}
-            </div>
-            <span className="text-[9px] text-gray-500 font-mono">
-              {d.PitCount} STOP{d.PitCount !== 1 ? "S" : ""}
-            </span>
-          </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate uppercase" style={{ fontSize: 10, color: "#93a0aa", lineHeight: 1.3 }}>{firstName} <span style={{ fontSize: 10 }}>{flag}</span></div>
+          <div className="truncate font-bold uppercase" style={{ fontSize: 22, letterSpacing: "-.04em", lineHeight: 1.1, color: "#f1f5f5" }}>{lastName || firstName}</div>
+          <div className="truncate uppercase" style={{ fontSize: 8, letterSpacing: ".11em", marginTop: 3, color: "#7f8d99" }}>{driverTeam}</div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div style={{ fontSize: 8, letterSpacing: ".12em", color: "#7f8d99" }}>POSITION</div>
+          <div className="font-mono font-bold" style={{ fontSize: 30, lineHeight: 1.15, color: "#8eb9ef", letterSpacing: "-.08em" }}><span style={{ fontSize: 12, marginRight: 2 }}>P</span>{d.Position}</div>
         </div>
       </div>
 
-      {/* Bottom stats bar — Sectors + Lap Times */}
-      <div className="border-t border-gray-800/60 mt-2 pt-2 shrink-0">
-        {/* Sector times */}
-        <div className="grid grid-cols-3 gap-1">
-          <div>
-            <div className="apex-label">S1</div>
-            <div className="font-mono text-xs font-bold text-apex-green">
-              {formatSectorTime(d.Sector1Time)}
+      <div className="flex flex-1 min-h-0 flex-col justify-center" style={{ padding: "7px 8px", background: "#111111", border: "1px solid #333333", borderRadius: 4 }}>
+        <div className="grid grid-cols-[1fr_.65fr_1fr] items-end gap-2">
+          {[{ label: "KM/H", value: telemetry.speed }, { label: "GEAR", value: telemetry.gear }, { label: "RPM", value: telemetry.rpm.toLocaleString() }].map((item, index) => (
+            <div key={item.label} className={index === 2 ? "text-right" : ""}>
+              <div className="font-mono font-semibold" style={{ fontSize: index === 2 ? 19 : 25, lineHeight: 1.15, color: index === 1 ? "#8eb9ef" : "#eff4f5", letterSpacing: "-.055em" }}>{item.value}</div>
+              <div style={{ fontSize: 8, color: "#778792", letterSpacing: ".12em", marginTop: 3 }}>{item.label}</div>
             </div>
-          </div>
-          <div>
-            <div className="apex-label">S2</div>
-            <div className="font-mono text-xs font-bold text-yellow-400">
-              {formatSectorTime(d.Sector2Time)}
-            </div>
-          </div>
-          <div>
-            <div className="apex-label">S3</div>
-            <div className="font-mono text-xs font-bold text-apex-green">
-              {formatSectorTime(d.Sector3Time)}
-            </div>
-          </div>
+          ))}
         </div>
+        <div className="mt-2 flex gap-0.5" aria-label={`Engine speed ${telemetry.rpm} RPM`}>
+          {Array.from({ length: 24 }, (_, index) => <span key={index} className="flex-1" style={{ height: 3, background: index / 24 < telemetry.rpm / 13000 ? (index > 19 ? "#d1ac70" : index > 14 ? "#7da6da" : "#496e9a") : "#333639" }} />)}
+        </div>
+      </div>
 
-        {/* Last / Best / Gap */}
-        <div className="grid grid-cols-3 gap-1 mt-1.5">
-          <div>
-            <div className="apex-label">LAST</div>
-            <div className="font-mono text-sm font-bold text-gray-100">
-              {formatLapTime(d.LastLapTime)}
-            </div>
+      <div className="grid grid-cols-3 gap-2 shrink-0">
+        {[{ label: "S1", value: formatSectorTime(d.Sector1Time) }, { label: "S2", value: formatSectorTime(d.Sector2Time) }, { label: "S3", value: formatSectorTime(d.Sector3Time) }].map((sector) => (
+          <div key={sector.label} style={{ borderTop: "2px solid #585d60", paddingTop: 4 }}>
+            <div className="flex items-baseline justify-between gap-1"><span style={{ fontSize: 8, color: "#7d8d98" }}>{sector.label}</span><span className="font-mono" style={{ fontSize: 10, color: "#d7e1e4" }}>{sector.value}</span></div>
           </div>
-          <div>
-            <div className="apex-label">BEST</div>
-            <div className="font-mono text-sm font-bold text-purple-400">
-              {formatLapTime(d.BestLapTime)}
-            </div>
-          </div>
-          <div>
-            <div className="apex-label">GAP</div>
-            <div className="font-mono text-sm font-bold text-apex-cyan">
-              {d.GapToLeader}
-            </div>
-          </div>
+        ))}
+      </div>
+
+      <div className="shrink-0" style={{ borderTop: "1px solid #333333", paddingTop: 7 }}>
+        <div className="grid grid-cols-3 gap-1">
+          {[{ label: "LAST LAP", value: formatLapTime(d.LastLapTime), color: "#dce5e7" }, { label: "BEST LAP", value: formatLapTime(d.BestLapTime), color: "#b49bd7" }, { label: "TO LEADER", value: d.GapToLeader, color: "#87b9df" }].map((stat) => (
+            <div key={stat.label}><div style={{ fontSize: 7, letterSpacing: ".08em", color: "#7d8d98" }}>{stat.label}</div><div className="font-mono font-medium" style={{ fontSize: 11, marginTop: 2, color: stat.color }}>{stat.value}</div></div>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2" style={{ fontSize: 8, letterSpacing: ".07em", color: "#8c9aa4" }}>
+          <span className="flex items-center gap-1.5 uppercase"><span className="h-2 w-2 rounded-full" style={{ border: `2px solid ${tireColor}` }} />{d.Compound} <span className="font-mono" style={{ color: "#d3dce0" }}> / {d.TyreLife} LAPS</span></span>
+          <span>{d.PitCount} PIT STOP{d.PitCount !== 1 ? "S" : ""}</span>
         </div>
       </div>
     </div>
