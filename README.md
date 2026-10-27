@@ -42,7 +42,7 @@ Race visualization data (timing, weather, track shape, race control) is loaded f
 2. Frontend sends a chaos payload via WebSocket to FastAPI (e.g. `{"event": "rain", "compound": "MEDIUM", "current_tire_age": 15, "laps_left": 30}`)
 3. **Stage 1**: Ridge regression estimates circuit base pace from track geometry (length + corners)
 4. **Stage 2**: XGBoost predicts the per-lap residual from tyre age, compound, position, fuel load, stint, driver, weather, and circuit geometry — anchored to the **GP median pace** (87.0s at Monza)
-5. NumPy Monte Carlo runs **10,000 simulations** with event penalties + Gaussian noise in <0.2s
+5. NumPy Monte Carlo runs **10,000 simulations** with event penalties + Gaussian noise in ~20 ms
 6. Gemini (via OpenRouter) formats the math output into a radio call
 7. Result is broadcast to all connected Pit Wall clients via WebSocket
 
@@ -53,12 +53,12 @@ Race visualization data (timing, weather, track shape, race control) is loaded f
 | Layer | Tech | Purpose |
 |---|---|---|
 | Frontend | Next.js App Router, Tailwind CSS | Pit Wall dashboard + iPad chaos console |
-| Animation | GSAP | Smooth car position transitions on track map |
+| Animation | GSAP | iPad steward console entrance + button-press animations |
 | Canvas | HTML5 `<canvas>`, `requestAnimationFrame` | 20-car track animation (car positions in refs, minimal React re-renders) |
 | Backend | Python FastAPI | WebSocket server for chaos events + ML inference |
 | ML — Stage 1 | Ridge Regression + Polynomial Features (degree 2) | Circuit-level base lap time prediction (generalizes across tracks) |
 | ML — Stage 2 | XGBoost + sklearn `ColumnTransformer` | Per-lap residual prediction from race-state features |
-| Simulation | NumPy vectorized Monte Carlo | 10K race simulations in <0.2s |
+| Simulation | NumPy vectorized Monte Carlo | 10K race simulations in ~20 ms (including XGBoost inference) |
 | LLM | Gemini 2.5 Flash via OpenRouter | Text formatting only (zero math) |
 | Data | FastF1 | Historical F1 timing, weather, telemetry |
 
@@ -161,7 +161,7 @@ Apex/
 |---|---|---|---|---|
 | `laps_train.csv` | `server/data/` | ~9,366 laps | 10 GPs for model training | `train_engine.py` |
 | `laps_test.csv` | `server/data/` | ~878 laps | Italy (Monza) held-out test set | `train_engine.py` |
-| `timing_data.json` | `web/lib/` | 20 drivers | Starting grid + Monza lap anchors | Frontend timing board |
+| `timing_data.json` | `web/lib/` | 20 drivers | Demo starting order (2023 drivers + player car APX) with Monza-pace lap anchors | Frontend timing board |
 | `weather_data.json` | `web/lib/` | 156 samples | Race weather time-series | `WeatherPanel` |
 | `monza.json` | `web/lib/` | 637 points | Track GPS coordinates | `TrackCanvas` |
 | `race_events_data.json` | `web/lib/` | 43 events | FIA race control messages | `RaceHistory` |
@@ -230,11 +230,24 @@ Metrics from `data/eval_report.json` (run `python train_engine.py` to regenerate
 
 | Metric | Value | Notes |
 |---|---|---|
-| **5-Fold CV lap MAE** | **~0.35s** | Lap-level KFold on 10 training GPs |
-| **5-Fold CV R²** | **0.996** | Explains 99.6% of lap-time variance in CV |
+| **5-Fold CV lap MAE** | **0.35s** (± 0.006) | Lap-level KFold on 10 training GPs (9,366 laps) — 64% below the 0.98s circuit-median baseline |
+| **5-Fold CV R²** | **0.996** | On absolute lap time. Mostly reflects between-circuit variance: the circuit-median baseline alone scores 0.985. R² on the residual Stage 2 predicts is **0.76** |
 | **Training MAE** | **0.30s** | Full fit on 10 GPs |
-| **Held-out Italy MAE** | **0.64s** | Monza test GP, using known circuit median anchor |
+| **Held-out Italy MAE** | **0.62s** | Monza test GP (878 laps), using known circuit median anchor. Circuit-median baseline: 0.59s |
 | **Stage 1 Italy extrapolation** | 82.3s est vs 87.0s actual | Ridge base pace; Stage 2 uses circuit median at inference |
+
+**Stricter validation.** The lap-level KFold above shuffles laps, so laps from the same race and driver appear in both train and validation folds. Holding out whole races gives a more realistic picture of generalisation to an unseen GP:
+
+| Validation | Lap MAE | Circuit-median baseline | Residual R² |
+|---|---|---|---|
+| 5-fold, shuffled laps (reported above) | 0.35s | 0.98s | 0.76 |
+| 5-fold, grouped by GP | 0.75s | 0.98s | 0.24 |
+| Leave-one-GP-out (10 folds) | 0.78s | 1.01s | 0.27 |
+| Held-out Italy | 0.62s | 0.59s | −0.08 |
+
+Numbers reproduced with scikit-learn 1.6.1 and XGBoost 3.4.1; the held-out Italy MAE can shift by a few hundredths across XGBoost versions.
+
+**Monte Carlo latency.** `run_monte_carlo()` (one XGBoost prediction + 10,000 vectorised simulations) takes 11–19 ms median, 57 ms worst case observed, on a 4-core 2.1 GHz Xeon. The NumPy simulation alone is ~10 ms for 10,000 races × 53 laps.
 
 ### Honest Assessment
 
@@ -243,6 +256,7 @@ Metrics from `data/eval_report.json` (run `python train_engine.py` to regenerate
 | Two-stage modeling | Correct | Stage 1 Ridge extrapolates circuit pace; Stage 2 XGBoost captures lap dynamics |
 | Monte Carlo 10K sims | Correct | Runs on backend chaos events; frontend timing uses separate heuristics |
 | LLM as text formatter only | Correct | Gemini does zero math — just formats the numbers into radio calls |
+| Generalisation to unseen GPs | Limitation | On whole held-out races Stage 2 beats the circuit-median baseline by ~22%; on Monza it does not beat it |
 | Circuit-level Stage 1 dataset | Limitation | Only 10 GPs for Ridge — more data would improve base extrapolation |
 | Chaos penalties are hardcoded | Limitation | Rain, SC, crash deltas are manual estimates in `simulator.py`, not learned |
 | Win probability is circular | Limitation | Compares model output (with noise) against model output (without noise) |
