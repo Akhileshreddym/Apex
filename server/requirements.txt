@@ -2,7 +2,8 @@ python-dotenv
 fastapi
 uvicorn
 websockets
-scikit-learn
+scikit-learn==1.6.1  # must match the version that saved models/preprocessor_v2.joblib
+xgboost>=2.0
 joblib
 numpy
 requests
