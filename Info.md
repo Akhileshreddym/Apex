@@ -45,7 +45,7 @@
 |------|---------|---------|--------|
 | `models/pace_model_v2.joblib` | Stage 1 — polynomial transformer + Ridge regressor (TrackLength, Corners → median lap time) | `simulator.py`, `train_engine.py` | **Active** |
 | `models/engine_v2.joblib` | Stage 2 — trained XGBRegressor for lap time residual prediction | `simulator.py`, `train_engine.py` | **Active** |
-| `models/preprocessor_v2.joblib` | ColumnTransformer that encodes Compound and scales numeric features before XGBoost | `simulator.py`, `train_engine.py` | **Active** |
+| `models/preprocessor_v2.joblib` | ColumnTransformer that median-imputes numeric features and one-hot encodes Compound and Driver before XGBoost | `simulator.py`, `train_engine.py` | **Active** |
 | `models/feature_columns_v2.json` | JSON array of Stage 2 feature names (numeric + OHE compound/driver) | `simulator.py`, `train_engine.py` | **Active** |
 | `models/circuit_medians.json` | Per-GP median lap times used as inference anchors (Italy = Monza replay) | `simulator.py`, `train_engine.py` | **Active** |
 
@@ -90,7 +90,7 @@
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `package.json` | Node dependencies (Next.js 15, React 19, Tailwind CSS 4) and scripts (`dev`, `build`, `start`, `lint`) | **Active** |
+| `package.json` | Node dependencies (Next.js 15, React 19, Tailwind CSS 3.4, GSAP) and scripts (`dev`, `build`, `start`, `lint`) | **Active** |
 | `package-lock.json` | Pinned dependency tree for reproducible installs | **Active** |
 | `tsconfig.json` | TypeScript config with `@/*` path alias mapping to project root | **Active** |
 | `next.config.ts` | Next.js config — React strict mode enabled | **Active** |
@@ -127,7 +127,7 @@
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
 | `ChaosContext.tsx` | React Context + Provider managing global chaos state: current event, Monte Carlo math results, AI radio call text, event history, weather overrides, tire deg modifier, time penalties. Connects to `ws://localhost:8000/ws/chaos` | `page.tsx`, all 7 components via `useChaos()` | **Active** |
-| `useWebSocket.ts` | Custom React hook for WebSocket connections with auto-reconnect (1s retry), JSON message parsing, and connection status tracking | `ChaosContext.tsx`, `app/ipad/page.tsx` | **Active** |
+| `useWebSocket.ts` | Custom React hook for WebSocket connections with auto-reconnect (3s retry), JSON message parsing, and connection status tracking | `ChaosContext.tsx`, `app/ipad/page.tsx` | **Active** |
 | `types.ts` | Full TypeScript type definitions matching FastF1 data structures — `TimingData`, `WeatherSample`, `RaceEvent`, `TrackStatusEntry`, `TireCompound`, `ChaosEvent`, `StrategyRec`, `PitWindowData`, etc. | `mock-data.ts`, `RaceHistory.tsx`, `StrategyPanel.tsx`, `ipad/page.tsx` | **Active** |
 | `format.ts` | Formatting utilities — `formatLapTime` (seconds → "M:SS.mmm"), `formatSectorTime`, `degreesToCardinal` (wind direction), `formatSessionTime` | `CarTimings.tsx`, `DriverCard.tsx`, `RaceHistory.tsx`, `WeatherPanel.tsx` | **Active** |
 | `mock-data.ts` | Central data hub. Imports all JSON data files, exports typed constants and lookup functions: `mockTimingData`, `weatherForLap()`, `weatherForecastForLap()`, `raceEvents`, `trackStatusForLap()`, `mockPitWindow`, `mockStrategies`, `mockTireDeg`, `TIRE_COLORS` | Nearly every component | **Active** |
